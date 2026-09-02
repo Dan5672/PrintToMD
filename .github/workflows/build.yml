@@ -1,0 +1,92 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-core:
+    name: Test converter
+    runs-on: windows-2025
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: |
+            global.json
+            NuGet.Config
+            src/Print2Md.Core/Print2Md.Core.csproj
+            tests/Print2Md.Core.Tests/Print2Md.Core.Tests.csproj
+
+      - name: Restore converter tests
+        run: dotnet restore tests/Print2Md.Core.Tests/Print2Md.Core.Tests.csproj --configfile NuGet.Config
+
+      - name: Build converter tests
+        run: dotnet build tests/Print2Md.Core.Tests/Print2Md.Core.Tests.csproj --configuration Release --no-restore
+
+      - name: Run converter tests
+        run: dotnet run --project tests/Print2Md.Core.Tests/Print2Md.Core.Tests.csproj --configuration Release --no-build
+
+  build-package:
+    name: Build unsigned MSIX
+    needs: test-core
+    runs-on: windows-2025
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Locate Visual Studio MSBuild
+        id: msbuild
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Universal -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) {
+            throw 'Visual Studio MSBuild with the UWP workload was not found.'
+          }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build unsigned application package
+        shell: pwsh
+        run: |
+          $packageDirectory = Join-Path $env:GITHUB_WORKSPACE 'artifacts\AppPackages'
+          New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
+          & '${{ steps.msbuild.outputs.path }}' 'src\Print2Md.App\Print2Md.App.csproj' `
+            /restore `
+            /m `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:RestoreConfigFile="$env:GITHUB_WORKSPACE\NuGet.Config" `
+            /p:GenerateAppxPackageOnBuild=true `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:AppxBundle=Never `
+            /p:AppxPackageSigningEnabled=false `
+            /p:AppxPackageDir="$packageDirectory\"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload unsigned package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Print2Md-unsigned-x64
+          path: artifacts/AppPackages/**
+          if-no-files-found: error
+          retention-days: 14
+

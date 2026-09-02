@@ -1,0 +1,26 @@
+<Page
+    x:Class="Print2Md.App.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <ScrollViewer>
+        <StackPanel MaxWidth="680" Padding="40" HorizontalAlignment="Center">
+            <TextBlock Text="Print to Markdown" Style="{ThemeResource TitleTextBlockStyle}" />
+            <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" FontSize="18"
+                       Text="The Print to Markdown printer is installed and ready." />
+            <Border Margin="0,28,0,0" Padding="20" CornerRadius="8"
+                    Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
+                <StackPanel>
+                    <TextBlock Text="How to use it" FontWeight="SemiBold" FontSize="20" />
+                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
+                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print to Markdown.&#x0a;3. Choose a .md file in the Windows Save As dialog." />
+                </StackPanel>
+            </Border>
+            <TextBlock Margin="0,24,0,0" TextWrapping="Wrap"
+                       Text="Images are saved beside the Markdown file in a .assets folder. Conversion happens entirely on this PC. Scanned text is retained as an image; OCR is not performed." />
+            <TextBlock Margin="0,16,0,0" Opacity="0.7" TextWrapping="Wrap"
+                       Text="Requires Windows 11 version 24H2 or later." />
+        </StackPanel>
+    </ScrollViewer>
+</Page>
+

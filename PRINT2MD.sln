@@ -1,0 +1,39 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Print2Md.Core", "src\Print2Md.Core\Print2Md.Core.csproj", "{BBCA498B-BA7B-4A40-B645-8F9FD496BBE8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Print2Md.Tasks", "src\Print2Md.Tasks\Print2Md.Tasks.csproj", "{A1D5F530-7E51-41EB-85AF-F77A0A9725D9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Print2Md.App", "src\Print2Md.App\Print2Md.App.csproj", "{37222D1C-B094-4672-946B-46C61092A735}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Print2Md.Core.Tests", "tests\Print2Md.Core.Tests\Print2Md.Core.Tests.csproj", "{B40C90F7-F8E8-45BB-A3CD-27B7181F9F6B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BBCA498B-BA7B-4A40-B645-8F9FD496BBE8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BBCA498B-BA7B-4A40-B645-8F9FD496BBE8}.Debug|x64.Build.0 = Debug|Any CPU
+		{BBCA498B-BA7B-4A40-B645-8F9FD496BBE8}.Release|x64.ActiveCfg = Release|Any CPU
+		{BBCA498B-BA7B-4A40-B645-8F9FD496BBE8}.Release|x64.Build.0 = Release|Any CPU
+		{A1D5F530-7E51-41EB-85AF-F77A0A9725D9}.Debug|x64.ActiveCfg = Debug|x64
+		{A1D5F530-7E51-41EB-85AF-F77A0A9725D9}.Debug|x64.Build.0 = Debug|x64
+		{A1D5F530-7E51-41EB-85AF-F77A0A9725D9}.Release|x64.ActiveCfg = Release|x64
+		{A1D5F530-7E51-41EB-85AF-F77A0A9725D9}.Release|x64.Build.0 = Release|x64
+		{37222D1C-B094-4672-946B-46C61092A735}.Debug|x64.ActiveCfg = Debug|x64
+		{37222D1C-B094-4672-946B-46C61092A735}.Debug|x64.Build.0 = Debug|x64
+		{37222D1C-B094-4672-946B-46C61092A735}.Release|x64.ActiveCfg = Release|x64
+		{37222D1C-B094-4672-946B-46C61092A735}.Release|x64.Build.0 = Release|x64
+		{B40C90F7-F8E8-45BB-A3CD-27B7181F9F6B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B40C90F7-F8E8-45BB-A3CD-27B7181F9F6B}.Debug|x64.Build.0 = Debug|Any CPU
+		{B40C90F7-F8E8-45BB-A3CD-27B7181F9F6B}.Release|x64.ActiveCfg = Release|Any CPU
+		{B40C90F7-F8E8-45BB-A3CD-27B7181F9F6B}.Release|x64.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
