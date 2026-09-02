@@ -19,7 +19,7 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     <LangVersion>latest</LangVersion>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
-    <GenerateTestArtifacts>true</GenerateTestArtifacts>
+    <GenerateTestArtifacts>false</GenerateTestArtifacts>
     <AppxBundle>Never</AppxBundle>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
