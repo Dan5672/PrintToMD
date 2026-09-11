@@ -1,3 +1,5 @@
+﻿#nullable enable
+
 using Print2Md.Core;
 using System.Threading;
 using System.Threading.Tasks;

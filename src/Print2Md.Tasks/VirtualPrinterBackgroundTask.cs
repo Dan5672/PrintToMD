@@ -1,5 +1,6 @@
-using Print2Md.Core;
+﻿using Print2Md.Core;
 using System;
+using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
