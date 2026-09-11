@@ -18,7 +18,7 @@ Print to Markdown is a Windows 11 virtual printer. Select it from an application
 The conversion runs entirely on your PC. Your documents are not uploaded, and the app does not require an internet connection while printing.
 
 > [!IMPORTANT]
-> Print to Markdown is currently a developer preview. It requires Windows 11 24H2 or later, and there is not yet a signed public installer. The current version must be deployed from Visual Studio as described below. GitHub Actions artifacts are unsigned build outputs and cannot be installed directly by most users.
+> Print to Markdown is currently a developer preview. It requires Windows 11 24H2 or later, and there is not yet a publicly trusted installer. To install it you sign a build with a development certificate created on your own PC, as described below. Visual Studio is not required for this.
 
 ## What you get
 
@@ -46,38 +46,56 @@ Print to Markdown can reconstruct:
 
 ## Requirements
 
-To run the current preview, you need:
+To install and run the current preview, you need:
 
 - Windows 11 version 24H2, build 26100 or later
 - An x64 PC
-- Visual Studio 2022 with:
-  - **Universal Windows Platform development** workload
-  - Windows 11 SDK `10.0.26100.0`
-  - MSIX Packaging Tools
 
 The virtual-printer API is not available on Windows 10 or older Windows 11 releases.
 
+To build from source you also need Visual Studio 2022 with:
+
+- **Universal Windows Platform development** workload
+- Windows 11 SDK `10.0.26100.0`
+- MSIX Packaging Tools
+
 ## Install the current preview
 
-### 1. Download the source
+Windows only installs an MSIX that carries a signature it trusts, so installing the preview means signing a build with a certificate you create locally. `scripts\Sign-Package.ps1` handles the whole sequence.
 
-Either use **Code > Download ZIP** on this repository and extract it, or clone it with Git:
+### 1. Download a build
+
+Open the [most recent successful build](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), download the `Print2Md-unsigned-x64` artifact, and extract it. It contains `Print2Md.App_1.0.0.0_x64.msix`.
+
+### 2. Sign and install it
 
 ```powershell
 git clone https://github.com/Dan5672/PrintToMD.git
 cd PrintToMD
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Sign-Package.ps1 -PackagePath <path to the .msix> -Install
 ```
 
-### 2. Deploy it from Visual Studio
+The script creates a development certificate whose subject matches the package publisher, downloads `signtool.exe` if the Windows SDK is not installed, signs the package, verifies the signature, and installs it. Omit `-PackagePath` to use the newest `.msix` under `artifacts` or your Downloads folder.
+
+The first run stops and asks you to trust the new certificate, which needs an elevated prompt:
+
+```powershell
+Import-Certificate -FilePath .tools\Print2Md-development.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+```
+
+Run that once from an administrator PowerShell, then run the script again. Later builds need only the script.
+
+### 3. Confirm the printer
+
+Open any application's **Print** dialog and confirm that **Print to Markdown** is listed.
+
+### Build it yourself instead
 
 1. Open `PRINT2MD.sln` in Visual Studio 2022.
 2. Select the **Debug** and **x64** configuration.
 3. In Solution Explorer, right-click `Print2Md.App` and choose **Set as Startup Project**.
 4. Restore NuGet packages and build the solution.
 5. Press **F5** to deploy and launch the app. Windows may ask you to enable Developer Mode.
-6. Confirm that **Print to Markdown** appears in a Windows Print dialog.
-
-Visual Studio installs the app package and registers the virtual-printer queue for the current development environment.
 
 ## Use Print to Markdown
 
@@ -114,7 +132,13 @@ For the best result, use the application's standard print layout and avoid optio
 
 ### The printer does not appear
 
-Confirm that the PC is running Windows 11 build 26100 or later and that Visual Studio successfully deployed `Print2Md.App`. Stop the debugging session, rebuild the solution, and press **F5** again.
+Confirm that the PC is running Windows 11 build 26100 or later, and that the package installed with a trusted signature:
+
+```powershell
+Get-AppxPackage -Name Print2Md | Select-Object SignatureKind, Status
+```
+
+A package can install successfully and still fail to create its printer queue. If `Get-Printer` does not list **Print to Markdown**, uninstall the package, restart the PC, and install it again.
 
 ### Images are missing in the Markdown viewer
 
@@ -140,7 +164,9 @@ Open **Settings > Apps > Installed apps**, find **Print to Markdown**, and selec
 
 ## Project status and development
 
-Every push and pull request to `main` runs the converter test suite and compiles an unsigned x64 application package on GitHub Actions. Successful workflow runs provide a `Print2Md-unsigned-x64` artifact for 14 days. The artifact verifies the complete project build, but a distributable release still requires a trusted code-signing certificate.
+Every push and pull request to `main` runs the converter test suite and compiles an unsigned x64 application package on GitHub Actions. Successful workflow runs provide a `Print2Md-unsigned-x64` artifact for 14 days, which you can install by signing it as described above.
+
+A release that installs without each user trusting a certificate still requires a publicly trusted code-signing certificate, such as one issued through Azure Trusted Signing, or distribution through the Microsoft Store.
 
 Run the platform-independent converter tests locally with:
 
