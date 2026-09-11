@@ -46,7 +46,7 @@
           Category="windows.printSupportVirtualPrinterWorkflow"
           EntryPoint="Print2Md.Tasks.VirtualPrinterBackgroundTask">
           <printsupport2:PrintSupportVirtualPrinter
-            DisplayName="Print to Markdown"
+            DisplayName="ms-resource:///Resources/PrinterDisplayName"
             PrinterUri="print2md:print-to-markdown"
             PreferredInputFormat="application/oxps"
             OutputFileTypes="md"
