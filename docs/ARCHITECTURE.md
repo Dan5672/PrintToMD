@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 ## Print workflow
 
@@ -19,10 +19,10 @@ Print2Md.Tasks.VirtualPrinterBackgroundTask
         │     lines → columns/tables → paragraphs/lists/headings
         │     repeated margin suppression
         │
-        ├── StagedAssetSink
-        │     image normalization + SHA-256 filenames
+        ├── OmittedAssetSink
+        │     declines every image
         │
-        └── sibling temporary Markdown → MoveAndReplaceAsync(target)
+        └── WriteTextAsync(target)
 ```
 
 The MSIX declaration uses `PreferredInputFormat="application/oxps"` and `OutputFileTypes="md"`. Windows owns destination selection and supplies both the OXPS stream and selected `StorageFile` to the background task.
@@ -34,8 +34,8 @@ The MSIX declaration uses `PreferredInputFormat="application/oxps"` and `OutputF
 - Body font size is the character-weighted document median. Larger short lines become Markdown headings.
 - A glyph-level horizontal gutter separates prose columns. A bold first aligned row is required before the same geometry is treated as a Markdown table.
 - Margin text is normalized for whitespace and changing digits. It is removed only when it occurs in the outer 10% on at least three pages and 60% of the document.
-- Images are deduplicated by SHA-256. Unsupported image encodings are decoded by Windows Imaging Component and emitted as PNG.
-- Image-only pages remain usable as linked images and receive a Markdown HTML comment plus a structured warning; no OCR is attempted.
+- A sink may decline an image by returning `null`. The image is then omitted, marked in the Markdown with an HTML comment, and reported as an `image-omitted` warning.
+- Image-only pages receive a Markdown HTML comment plus a structured warning; no OCR is attempted.
 
 The core converter exposes one asynchronous boundary:
 
@@ -51,9 +51,11 @@ Task<ConversionResult> ConvertAsync(
 
 ## Commit and failure behavior
 
-Images are normalized in memory before output is committed. Asset filenames are derived from source hashes, so retrying a job safely reuses the same names. The final Markdown is first written to a uniquely named sibling file and moved over the selected target only after conversion and asset writes succeed.
+The print system grants the background task access to the `StorageFile` the user named in the Save As dialog and to nothing else. `GetParentAsync` on that file returns `null`, so the task cannot create sibling files: neither an asset folder nor a temporary file to move over the target. Markdown is therefore written directly to the granted file, and `OmittedAssetSink` declines every image.
 
-Cancellation reports `Canceled`; parsing, conversion, and I/O failures report `Failed`. Temporary Markdown is deleted on failure. Already committed content-addressed images can remain after a later failure, but they contain only exact assets from that job and cannot be referenced by a partial Markdown file.
+Restoring images requires a way to write beside the target file, such as the restricted `broadFileSystemAccess` capability, or a change in output format such as embedding images as `data:` URIs.
+
+Cancellation reports `Canceled`; parsing, conversion, and I/O failures report `Failed`. A failure after the write has begun can leave a partially written Markdown file, because the target is written in place.
 
 ## Security and privacy
 

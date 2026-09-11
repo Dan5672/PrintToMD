@@ -35,6 +35,13 @@ public sealed class OxpsToMarkdownConverter
                     var reference = await assetSink.WriteAsync(
                         new AssetContent(image.ContentHash, image.ContentType, image.Bytes, page.Number),
                         cancellationToken).ConfigureAwait(false);
+                    if (reference == null)
+                    {
+                        image.Omitted = true;
+                        warnings.Add(new ConversionWarning("image-omitted", "An image was not stored and has been omitted from the Markdown.", page.Number));
+                        continue;
+                    }
+
                     image.Reference = reference;
                     assets.Add(reference);
                 }

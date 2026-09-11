@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Print2Md.Core;
@@ -57,6 +57,8 @@ internal sealed class ImageModel
     public double Height { get; set; }
 
     public AssetReference? Reference { get; set; }
+
+    public bool Omitted { get; set; }
 }
 
 internal sealed class TextLine

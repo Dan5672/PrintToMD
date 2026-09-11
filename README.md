@@ -1,4 +1,4 @@
-# Print to Markdown
+﻿# Print to Markdown
 
 <p align="center">
   <img src="src/Print2Md.App/Assets/Source/Logo.png" alt="Print to Markdown logo" width="144">
@@ -22,16 +22,7 @@ The conversion runs entirely on your PC. Your documents are not uploaded, and th
 
 ## What you get
 
-Printing a document as `meeting-notes.md` produces:
-
-```text
-meeting-notes.md
-meeting-notes.assets/
-  00a4d8c7b5d1f91d3f1a7b26.png
-  d20f11e1fb7155ea40c0eeb9.jpg
-```
-
-The Markdown file contains relative links to the extracted images. Keep the `.md` file and its `.assets` folder together when moving or sharing the document.
+Printing a document as `meeting-notes.md` produces a single `meeting-notes.md` file containing its text.
 
 Print to Markdown can reconstruct:
 
@@ -41,8 +32,10 @@ Print to Markdown can reconstruct:
 - Simple tables
 - Common two-column layouts
 - Visible URLs and explicit hyperlinks
-- PNG, JPEG, and GIF images
 - Repeated page-header, footer, and page-number removal
+
+> [!NOTE]
+> This preview converts text only. Windows grants the converter access to the single file you name in the **Save As** dialog and to nothing else, so it cannot write images into a companion folder beside that file. Each image is left out and marked in the Markdown with an HTML comment, so nothing disappears silently.
 
 ## Requirements
 
@@ -107,7 +100,7 @@ Open any application's **Print** dialog and confirm that **Print to Markdown** i
 6. In the Windows **Save As** dialog, choose a location and a filename ending in `.md`.
 7. Open the resulting file in any Markdown editor or viewer.
 
-If the printout contains images, Print to Markdown creates a companion `<filename>.assets` folder in the same location.
+Images in the printout are omitted from the Markdown and marked with an HTML comment where they appeared.
 
 ## Understand the limitations
 
@@ -116,7 +109,7 @@ A print job contains positioned text and page graphics, not the source document'
 - Complex or borderless tables may be emitted as ordinary paragraphs.
 - Unusual columns, writing directions, or layered graphics may not retain their intended reading order.
 - Page layout will not be reproduced pixel-for-pixel; the goal is readable Markdown.
-- Scans and image-only pages are preserved as images, but **OCR is not performed**. A warning is added to the Markdown so this is not mistaken for lost text.
+- Images are not saved, and **OCR is not performed**. A scanned or image-only page therefore produces no text, and the Markdown records where its content was so this is not mistaken for lost text.
 - Content that an application does not include in its print output cannot be recovered.
 
 For the best result, use the application's standard print layout and avoid options such as multiple source pages per printed sheet.
@@ -140,13 +133,13 @@ Get-AppxPackage -Name Print2Md | Select-Object SignatureKind, Status
 
 A package can install successfully and still fail to create its printer queue. If `Get-Printer` does not list **Print to Markdown**, uninstall the package, restart the PC, and install it again.
 
-### Images are missing in the Markdown viewer
+### The Markdown contains no images
 
-Keep the generated `.assets` folder beside the Markdown file. If you rename the Markdown file and its asset folder, you must also update the relative image paths inside the Markdown.
+This is expected in the current preview. Images are replaced by an HTML comment recording that one was omitted.
 
 ### A scanned document has no selectable text
 
-This is expected in the current preview. Scanned pages are retained as images, and the app does not perform OCR.
+This is expected in the current preview. The app does not perform OCR, and a page with no selectable text produces no Markdown text.
 
 ### Windows reports that the print job failed
 

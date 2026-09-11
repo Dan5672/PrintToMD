@@ -42,6 +42,11 @@ internal sealed class LayoutAnalyzer
                 blocks.Add(new MarkdownBlock(image.Y, $"![{alt}]({MarkdownEscaping.LinkDestination(reference.RelativePath)})"));
             }
 
+            foreach (var image in page.Images.Where(item => item.Omitted))
+            {
+                blocks.Add(new MarkdownBlock(image.Y, $"<!-- Print2Md: an image on page {page.Number} was omitted; this preview does not save images. -->"));
+            }
+
             if (lines.Count == 0 && page.Images.Count > 0)
             {
                 warnings.Add(new ConversionWarning("ocr-not-performed", "This page contains images but no extractable text; OCR was not performed.", page.Number));

@@ -1,6 +1,5 @@
 using Print2Md.Core;
 using System;
-using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,36 +55,13 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 return;
             }
 
-            var parent = await target.GetParentAsync();
-            if (parent == null)
-            {
-                throw new IOException("The selected Markdown file has no writable parent folder.");
-            }
-
-            var stem = Path.GetFileNameWithoutExtension(target.Name);
-            var assetFolderName = stem + ".assets";
-            var assetSink = new StagedAssetSink(assetFolderName);
             ConversionResult result;
             using (var input = args.SourceContent.GetInputStream().AsStreamForRead())
             {
-                result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, assetSink, token);
+                result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new OmittedAssetSink(), token);
             }
 
-            await assetSink.CommitAsync(parent, token);
-            var temporary = await parent.CreateFileAsync(
-                "." + stem + ".print2md-" + Guid.NewGuid().ToString("N") + ".tmp",
-                CreationCollisionOption.FailIfExists);
-            try
-            {
-                await FileIO.WriteTextAsync(temporary, result.Markdown, UnicodeEncoding.Utf8);
-                await temporary.MoveAndReplaceAsync(target);
-            }
-            catch
-            {
-                await temporary.DeleteAsync(StorageDeleteOption.PermanentDelete);
-                throw;
-            }
-
+            await FileIO.WriteTextAsync(target, result.Markdown, UnicodeEncoding.Utf8);
             status = PrintWorkflowSubmittedStatus.Succeeded;
         }
         catch (OperationCanceledException)

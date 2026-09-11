@@ -31,7 +31,12 @@ public sealed class ConversionOptions
 /// <summary>Receives an image before the converter emits its Markdown reference.</summary>
 public interface IAssetSink
 {
-    Task<AssetReference> WriteAsync(AssetContent asset, CancellationToken cancellationToken);
+    /// <summary>
+    /// Stores an image and returns the reference the Markdown should link to, or
+    /// <c>null</c> when the sink declines to store it. A declined image is omitted
+    /// from the Markdown and reported as an <c>image-omitted</c> warning.
+    /// </summary>
+    Task<AssetReference?> WriteAsync(AssetContent asset, CancellationToken cancellationToken);
 }
 
 public sealed class AssetContent
