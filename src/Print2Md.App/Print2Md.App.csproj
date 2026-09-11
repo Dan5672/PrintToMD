@@ -64,6 +64,9 @@
     </AppxManifest>
   </ItemGroup>
   <ItemGroup>
+    <PRIResource Include="Strings\en-us\Resources.resw" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="Assets\Square44x44Logo.png" />
     <Content Include="Assets\Square150x150Logo.png" />
     <Content Include="Assets\Wide310x150Logo.png" />
