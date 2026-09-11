@@ -1,4 +1,4 @@
-using Print2Md.Core;
+﻿using Print2Md.Core;
 using Print2Md.Core.Tests;
 
 var tests = new (string Name, Func<Task> Run)[]
@@ -10,6 +10,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("forward-only input", ForwardOnlyInput),
     ("malformed package", MalformedPackage),
     ("missing image warning", MissingImageWarning),
+    ("declined images omitted", DeclinedImagesAreOmitted),
     ("cancellation", Cancellation),
     ("option validation", OptionValidation),
 };
@@ -111,6 +112,21 @@ static async Task ImagesAndWarnings()
     AssertEx.True(result.Warnings.Any(warning => warning.Code == "ocr-not-performed"), "Expected an OCR warning.");
 }
 
+static async Task DeclinedImagesAreOmitted()
+{
+    var png = System.Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+    var fixture = new OxpsFixtureBuilder();
+    fixture.AddPngResource("Resources/Images/pixel.png", png);
+    fixture.AddPage().Image("/Resources/Images/pixel.png", 0, 0, 800, 800);
+    using var stream = fixture.Build();
+    var result = await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new DecliningAssetSink(), CancellationToken.None);
+
+    AssertEx.Equal(0, result.Assets.Count);
+    AssertEx.True(!result.Markdown.Contains("!["), "A declined image must not be linked from the Markdown." + Environment.NewLine + result.Markdown);
+    AssertEx.Contains("was omitted", result.Markdown);
+    AssertEx.True(result.Warnings.Any(warning => warning.Code == "image-omitted"), "Expected an image-omitted warning.");
+}
+
 static async Task ForwardOnlyInput()
 {
     var fixture = new OxpsFixtureBuilder();
@@ -160,6 +176,15 @@ static async Task<ConversionResult> Convert(OxpsFixtureBuilder fixture)
 {
     using var stream = fixture.Build();
     return await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None);
+}
+
+internal sealed class DecliningAssetSink : IAssetSink
+{
+    public Task<AssetReference?> WriteAsync(AssetContent asset, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<AssetReference?>(null);
+    }
 }
 
 internal sealed class ForwardOnlyStream : MemoryStream
