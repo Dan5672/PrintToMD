@@ -16,10 +16,10 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
           cache: true
@@ -44,10 +44,10 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
@@ -83,7 +83,7 @@ jobs:
           }
 
       - name: Upload unsigned package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Print2Md-unsigned-x64
           path: artifacts/AppPackages/**
