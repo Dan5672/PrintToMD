@@ -52,6 +52,19 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         }
     }
 
+    private static async Task<long> MeasureAsync(Stream input, CancellationToken cancellationToken)
+    {
+        var total = 0L;
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+        {
+            total += read;
+        }
+
+        return total;
+    }
+
     private void LogProgress(string stage)
     {
         _ = WriteProgressAsync(stage);
@@ -73,7 +86,12 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             // Queued, not awaited: the handler must read from args before it yields.
             LogProgress("data-available");
             var token = cancellation.Token;
-            if (!string.Equals(args.SourceContent.ContentType, "application/oxps", StringComparison.OrdinalIgnoreCase))
+            var sourceFormat = args.SourceContent.ContentType ?? string.Empty;
+            LogProgress("source-format type=" + sourceFormat);
+
+            var isOxps = string.Equals(sourceFormat, "application/oxps", StringComparison.OrdinalIgnoreCase);
+            var isPdf = string.Equals(sourceFormat, "application/pdf", StringComparison.OrdinalIgnoreCase);
+            if (!isOxps && !isPdf)
             {
                 throw new ConversionException(ConversionFailure.UnsupportedFormat, "Print2Md received an unsupported print data format.");
             }
@@ -88,23 +106,39 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 return;
             }
 
-            ConversionResult result;
+            string markdown;
             stage = "open-input";
             await WriteProgressAsync(stage);
             using (var input = args.SourceContent.GetInputStream().AsStreamForRead())
             {
-                stage = "convert";
-                await WriteProgressAsync(stage);
-                result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new OmittedAssetSink(), token);
-            }
+                if (isPdf)
+                {
+                    // Passthrough sources such as Chromium hand over their original PDF.
+                    // Confirm that the stream arrives before building a PDF converter.
+                    stage = "measure-pdf";
+                    await WriteProgressAsync(stage);
+                    var length = await MeasureAsync(input, token);
+                    await WriteProgressAsync("pdf-received bytes=" + length);
+                    markdown =
+                        "<!-- Print2Md: this document arrived as PDF passthrough (" + length + " bytes). " +
+                        "PDF conversion is not implemented yet. -->" + Environment.NewLine;
+                }
+                else
+                {
+                    stage = "convert";
+                    await WriteProgressAsync(stage);
+                    var result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new OmittedAssetSink(), token);
 
-            // Counts only: these distinguish a rasterized page from one whose glyph
-            // runs carry no recoverable text, without recording any document content.
-            await WriteProgressAsync("converted pages=" + result.PageCount +
-                " glyphs=" + result.GlyphRunCount +
-                " glyphs-no-text=" + result.GlyphRunsWithoutText +
-                " images=" + result.ImageCount +
-                " chars=" + result.Markdown.Length);
+                    // Counts only: these distinguish a rasterized page from one whose glyph
+                    // runs carry no recoverable text, without recording any document content.
+                    await WriteProgressAsync("converted pages=" + result.PageCount +
+                        " glyphs=" + result.GlyphRunCount +
+                        " glyphs-no-text=" + result.GlyphRunsWithoutText +
+                        " images=" + result.ImageCount +
+                        " chars=" + result.Markdown.Length);
+                    markdown = result.Markdown;
+                }
+            }
 
             stage = "write-target";
             await WriteProgressAsync(stage);
@@ -119,7 +153,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 using (var writer = new DataWriter(output.GetOutputStreamAt(0)))
                 {
                     writer.UnicodeEncoding = UnicodeEncoding.Utf8;
-                    writer.WriteString(result.Markdown);
+                    writer.WriteString(markdown);
                     await writer.StoreAsync();
                     stage = "flush-output";
                     await WriteProgressAsync(stage);
