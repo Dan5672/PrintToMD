@@ -154,12 +154,22 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($Install) {
-    $installed = Get-AppxPackage -Name $packageName
-    if ($installed) {
-        Remove-AppxPackage -Package $installed.PackageFullName
+    # Prefer an in-place upgrade. Uninstalling moves the virtual printer queue into
+    # PendingDeletion, and a queue still holding a job cannot finish deleting, which
+    # leaves the printer unusable until the spooler is restarted. Removing first is
+    # only needed when the package version has not changed.
+    try {
+        Add-AppxPackage -Path $signedPackage -ErrorAction Stop
     }
+    catch {
+        Write-Verbose 'In-place install failed; removing the installed package first.'
+        $installed = Get-AppxPackage -Name $packageName
+        if ($installed) {
+            Remove-AppxPackage -Package $installed.PackageFullName
+        }
 
-    Add-AppxPackage -Path $signedPackage
+        Add-AppxPackage -Path $signedPackage
+    }
 
     $queue = Get-Printer -ErrorAction SilentlyContinue | Where-Object { $_.PortName -like "$packageName`_*" }
     if ($queue) {
