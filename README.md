@@ -167,6 +167,14 @@ Run the platform-independent converter tests locally with:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Core.ps1
 ```
 
+After installing the package on Windows, exercise the actual printer with a synthetic text page:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Printer.ps1
+```
+
+This checks the generated Markdown for the expected text. The default output is `.tools\printer-smoke.md`; use `-OutputPath` with a fresh filename for another run. The test refuses to overwrite an existing file. If Windows displays a Save As dialog, choose the specified output path.
+
 The repository contains three production projects:
 
 - `Print2Md.Core` - OXPS parser, layout analysis, and Markdown rendering
