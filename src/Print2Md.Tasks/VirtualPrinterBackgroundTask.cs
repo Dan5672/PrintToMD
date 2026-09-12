@@ -19,33 +19,47 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
     private CancellationTokenSource cancellation;
     private readonly string diagnosticJob = Guid.NewGuid().ToString("N");
 
-    public async void Run(IBackgroundTaskInstance taskInstance)
+    public void Run(IBackgroundTaskInstance taskInstance)
     {
         deferral = taskInstance.GetDeferral();
         cancellation = new CancellationTokenSource();
         taskInstance.Canceled += OnCanceled;
 
+        // Run must stay synchronous through session.Start(). Awaiting here returns
+        // control to the print system before the session is started, and the
+        // VirtualPrinterDataAvailable event is then never delivered. Diagnostics are
+        // therefore queued rather than awaited on this path.
         try
         {
-            await WriteProgressAsync("activated");
+            LogProgress("activated");
             var details = taskInstance.TriggerDetails as PrintWorkflowVirtualPrinterTriggerDetails;
             if (details == null)
             {
-                await WriteProgressAsync("unsupported-trigger");
+                LogProgress("unsupported-trigger");
                 CompleteTask();
                 return;
             }
 
             var session = details.VirtualPrinterSession;
             session.VirtualPrinterDataAvailable += OnDataAvailable;
-            await WriteProgressAsync("session-start");
             session.Start();
+            LogProgress("session-started");
         }
         catch (Exception exception)
         {
-            await WriteDiagnosticAsync(exception, "session-start");
+            LogFailure(exception, "session-start");
             CompleteTask();
         }
+    }
+
+    private void LogProgress(string stage)
+    {
+        _ = WriteProgressAsync(stage);
+    }
+
+    private void LogFailure(Exception exception, string stage)
+    {
+        _ = WriteDiagnosticAsync(exception, stage);
     }
 
     private async void OnDataAvailable(
@@ -56,7 +70,8 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         var stage = "validate-format";
         try
         {
-            await WriteProgressAsync("data-available");
+            // Queued, not awaited: the handler must read from args before it yields.
+            LogProgress("data-available");
             var token = cancellation.Token;
             if (!string.Equals(args.SourceContent.ContentType, "application/oxps", StringComparison.OrdinalIgnoreCase))
             {
