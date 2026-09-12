@@ -187,9 +187,13 @@ internal sealed class OxpsPackageReader
 
         foreach (var glyph in root.DescendantsAndSelf().Where(element => element.Name.LocalName == "Glyphs"))
         {
+            page.GlyphRunCount++;
             var text = DecodeUnicodeString(Attribute(glyph, "UnicodeString"));
             if (string.IsNullOrWhiteSpace(text))
             {
+                // Glyph runs carry text in UnicodeString. A run with only Indices
+                // cannot be recovered without reversing the font's character map.
+                page.GlyphRunsWithoutText++;
                 continue;
             }
 

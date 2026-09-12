@@ -98,6 +98,14 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new OmittedAssetSink(), token);
             }
 
+            // Counts only: these distinguish a rasterized page from one whose glyph
+            // runs carry no recoverable text, without recording any document content.
+            await WriteProgressAsync("converted pages=" + result.PageCount +
+                " glyphs=" + result.GlyphRunCount +
+                " glyphs-no-text=" + result.GlyphRunsWithoutText +
+                " images=" + result.ImageCount +
+                " chars=" + result.Markdown.Length);
+
             stage = "write-target";
             await WriteProgressAsync(stage);
             token.ThrowIfCancellationRequested();

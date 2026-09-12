@@ -19,6 +19,10 @@ internal sealed class XpsPageModel
     public List<TextRunModel> TextRuns { get; } = new List<TextRunModel>();
 
     public List<ImageModel> Images { get; } = new List<ImageModel>();
+
+    public int GlyphRunCount { get; set; }
+
+    public int GlyphRunsWithoutText { get; set; }
 }
 
 internal sealed class TextRunModel

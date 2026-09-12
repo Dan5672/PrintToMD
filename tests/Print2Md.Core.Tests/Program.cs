@@ -14,6 +14,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("invalid interleaved pieces", InvalidInterleavedPieces),
     ("missing image warning", MissingImageWarning),
     ("declined images omitted", DeclinedImagesAreOmitted),
+    ("content counts", ContentCounts),
     ("cancellation", Cancellation),
     ("option validation", OptionValidation),
 };
@@ -113,6 +114,24 @@ static async Task ImagesAndWarnings()
     AssertEx.Contains("![Image from page 1](document.assets/", result.Markdown);
     AssertEx.Contains("OCR was not performed", result.Markdown);
     AssertEx.True(result.Warnings.Any(warning => warning.Code == "ocr-not-performed"), "Expected an OCR warning.");
+}
+
+static async Task ContentCounts()
+{
+    var text = new OxpsFixtureBuilder();
+    text.AddPage().Glyph("One", 60, 100).Glyph("Two", 60, 120).Glyph("Three", 60, 140);
+    var textResult = await Convert(text);
+    AssertEx.Equal(3, textResult.GlyphRunCount);
+    AssertEx.Equal(0, textResult.GlyphRunsWithoutText);
+    AssertEx.Equal(0, textResult.ImageCount);
+
+    var png = System.Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+    var image = new OxpsFixtureBuilder();
+    image.AddPngResource("Resources/Images/pixel.png", png);
+    image.AddPage().Image("/Resources/Images/pixel.png", 0, 0, 800, 800);
+    var imageResult = await Convert(image);
+    AssertEx.Equal(0, imageResult.GlyphRunCount);
+    AssertEx.Equal(1, imageResult.ImageCount);
 }
 
 static async Task DeclinedImagesAreOmitted()

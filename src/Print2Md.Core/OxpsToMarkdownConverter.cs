@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -53,7 +54,14 @@ public sealed class OxpsToMarkdownConverter
         }
 
         var markdown = new LayoutAnalyzer(options).Render(document, warnings);
-        return new ConversionResult(markdown, assets.AsReadOnly(), warnings.AsReadOnly(), document.Pages.Count);
+        return new ConversionResult(
+            markdown,
+            assets.AsReadOnly(),
+            warnings.AsReadOnly(),
+            document.Pages.Count,
+            document.Pages.Sum(page => page.GlyphRunCount),
+            document.Pages.Sum(page => page.GlyphRunsWithoutText),
+            document.Pages.Sum(page => page.Images.Count));
     }
 
     private static void ValidateOptions(ConversionOptions options)

@@ -89,12 +89,22 @@ public sealed class ConversionWarning
 
 public sealed class ConversionResult
 {
-    internal ConversionResult(string markdown, IReadOnlyList<AssetReference> assets, IReadOnlyList<ConversionWarning> warnings, int pageCount)
+    internal ConversionResult(
+        string markdown,
+        IReadOnlyList<AssetReference> assets,
+        IReadOnlyList<ConversionWarning> warnings,
+        int pageCount,
+        int glyphRunCount,
+        int glyphRunsWithoutText,
+        int imageCount)
     {
         Markdown = markdown;
         Assets = assets;
         Warnings = warnings;
         PageCount = pageCount;
+        GlyphRunCount = glyphRunCount;
+        GlyphRunsWithoutText = glyphRunsWithoutText;
+        ImageCount = imageCount;
     }
 
     public string Markdown { get; }
@@ -104,6 +114,15 @@ public sealed class ConversionResult
     public IReadOnlyList<ConversionWarning> Warnings { get; }
 
     public int PageCount { get; }
+
+    /// <summary>Glyph runs found in the print data, before text recovery.</summary>
+    public int GlyphRunCount { get; }
+
+    /// <summary>Glyph runs carrying no UnicodeString, whose text cannot be recovered.</summary>
+    public int GlyphRunsWithoutText { get; }
+
+    /// <summary>Images found in the print data, whether or not they were stored.</summary>
+    public int ImageCount { get; }
 }
 
 public enum ConversionFailure
