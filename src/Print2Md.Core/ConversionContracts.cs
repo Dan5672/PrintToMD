@@ -106,8 +106,28 @@ public sealed class ConversionResult
     public int PageCount { get; }
 }
 
+public enum ConversionFailure
+{
+    Unknown,
+    UnsupportedFormat,
+    NoPages,
+    InvalidPackage,
+    InvalidXml,
+    MissingSequence,
+    MissingPageRoot,
+    MissingPart,
+}
+
 public sealed class ConversionException : Exception
 {
+    public ConversionFailure Failure { get; }
+
+    public ConversionException(ConversionFailure failure, string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+        Failure = failure;
+    }
+
     public ConversionException(string message)
         : base(message)
     {
@@ -118,4 +138,3 @@ public sealed class ConversionException : Exception
     {
     }
 }
-

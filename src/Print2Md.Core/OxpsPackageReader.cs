@@ -44,10 +44,7 @@ internal sealed class OxpsPackageReader
         {
             using (var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, true))
             {
-                var entries = archive.Entries.ToDictionary(
-                    entry => NormalizePartName(entry.FullName),
-                    entry => entry,
-                    StringComparer.OrdinalIgnoreCase);
+                var entries = OxpsPart.Index(archive);
                 var contentTypes = ReadContentTypes(entries);
                 var sequencePart = FindFixedDocumentSequence(entries);
                 var document = new XpsDocumentModel();
@@ -65,7 +62,7 @@ internal sealed class OxpsPackageReader
 
                 if (document.Pages.Count == 0)
                 {
-                    throw new ConversionException("The OXPS package does not contain any fixed pages.");
+                    throw new ConversionException(ConversionFailure.NoPages, "The OXPS package does not contain any fixed pages.");
                 }
 
                 return document;
@@ -77,11 +74,11 @@ internal sealed class OxpsPackageReader
         }
         catch (InvalidDataException exception)
         {
-            throw new ConversionException("The print job is not a valid OXPS package.", exception);
+            throw new ConversionException(ConversionFailure.InvalidPackage, "The print job is not a valid OXPS package.", exception);
         }
         catch (XmlException exception)
         {
-            throw new ConversionException("The OXPS package contains invalid XML.", exception);
+            throw new ConversionException(ConversionFailure.InvalidXml, "The OXPS package contains invalid XML.", exception);
         }
         finally
         {
@@ -89,7 +86,7 @@ internal sealed class OxpsPackageReader
         }
     }
 
-    private static ContentTypeMap ReadContentTypes(IReadOnlyDictionary<string, ZipArchiveEntry> entries)
+    private static ContentTypeMap ReadContentTypes(IReadOnlyDictionary<string, OxpsPart> entries)
     {
         var map = new ContentTypeMap();
         if (!entries.TryGetValue("[Content_Types].xml", out var entry))
@@ -123,7 +120,7 @@ internal sealed class OxpsPackageReader
         return map;
     }
 
-    private static string FindFixedDocumentSequence(IReadOnlyDictionary<string, ZipArchiveEntry> entries)
+    private static string FindFixedDocumentSequence(IReadOnlyDictionary<string, OxpsPart> entries)
     {
         if (entries.TryGetValue("_rels/.rels", out var rootRelationships))
         {
@@ -141,13 +138,13 @@ internal sealed class OxpsPackageReader
         var fallback = entries.Keys.FirstOrDefault(name => name.EndsWith(".fdseq", StringComparison.OrdinalIgnoreCase));
         if (fallback == null)
         {
-            throw new ConversionException("The OXPS package has no FixedDocumentSequence relationship.");
+            throw new ConversionException(ConversionFailure.MissingSequence, "The OXPS package has no FixedDocumentSequence relationship.");
         }
 
         return fallback;
     }
 
-    private static IEnumerable<string> ReadDocumentReferences(IReadOnlyDictionary<string, ZipArchiveEntry> entries, string sequencePart)
+    private static IEnumerable<string> ReadDocumentReferences(IReadOnlyDictionary<string, OxpsPart> entries, string sequencePart)
     {
         var xml = LoadRequiredXml(entries, sequencePart);
         foreach (var reference in xml.Descendants().Where(element => element.Name.LocalName == "DocumentReference"))
@@ -160,7 +157,7 @@ internal sealed class OxpsPackageReader
         }
     }
 
-    private static IEnumerable<string> ReadPageReferences(IReadOnlyDictionary<string, ZipArchiveEntry> entries, string documentPart)
+    private static IEnumerable<string> ReadPageReferences(IReadOnlyDictionary<string, OxpsPart> entries, string documentPart)
     {
         var xml = LoadRequiredXml(entries, documentPart);
         foreach (var reference in xml.Descendants().Where(element => element.Name.LocalName == "PageContent"))
@@ -174,13 +171,13 @@ internal sealed class OxpsPackageReader
     }
 
     private XpsPageModel ReadPage(
-        IReadOnlyDictionary<string, ZipArchiveEntry> entries,
+        IReadOnlyDictionary<string, OxpsPart> entries,
         ContentTypeMap contentTypes,
         string pagePart,
         int pageNumber)
     {
         var xml = LoadRequiredXml(entries, pagePart);
-        var root = xml.Root ?? throw new ConversionException($"Fixed page {pageNumber} has no root element.");
+        var root = xml.Root ?? throw new ConversionException(ConversionFailure.MissingPageRoot, $"Fixed page {pageNumber} has no root element.");
         var page = new XpsPageModel
         {
             Number = pageNumber,
@@ -424,17 +421,17 @@ internal sealed class OxpsPackageReader
     private static double ParseDouble(string? value, double fallback) =>
         double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
 
-    private static XDocument LoadRequiredXml(IReadOnlyDictionary<string, ZipArchiveEntry> entries, string partName)
+    private static XDocument LoadRequiredXml(IReadOnlyDictionary<string, OxpsPart> entries, string partName)
     {
         if (!entries.TryGetValue(NormalizePartName(partName), out var entry))
         {
-            throw new ConversionException($"The OXPS package is missing required part '{partName}'.");
+            throw new ConversionException(ConversionFailure.MissingPart, $"The OXPS package is missing required part '{partName}'.");
         }
 
         return LoadXml(entry);
     }
 
-    private static XDocument LoadXml(ZipArchiveEntry entry)
+    private static XDocument LoadXml(OxpsPart entry)
     {
         using (var stream = entry.Open())
         using (var reader = XmlReader.Create(stream, new XmlReaderSettings
@@ -448,7 +445,7 @@ internal sealed class OxpsPackageReader
         }
     }
 
-    private static byte[] ReadAllBytes(ZipArchiveEntry entry)
+    private static byte[] ReadAllBytes(OxpsPart entry)
     {
         using (var input = entry.Open())
         using (var output = new MemoryStream())

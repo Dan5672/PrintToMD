@@ -9,6 +9,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("images and image-only warning", ImagesAndWarnings),
     ("forward-only input", ForwardOnlyInput),
     ("malformed package", MalformedPackage),
+    ("conversion failure codes", ConversionFailureCodes),
+    ("interleaved print package", InterleavedPrintPackage),
+    ("invalid interleaved pieces", InvalidInterleavedPieces),
     ("missing image warning", MissingImageWarning),
     ("declined images omitted", DeclinedImagesAreOmitted),
     ("cancellation", Cancellation),
@@ -142,6 +145,114 @@ static async Task MalformedPackage()
     using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
     await AssertEx.ThrowsAsync<ConversionException>(async () =>
         await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None));
+}
+
+static async Task ConversionFailureCodes()
+{
+    foreach (var scenario in new[] { ConversionFailure.InvalidPackage, ConversionFailure.InvalidXml, ConversionFailure.MissingPart })
+    {
+        var fixture = new OxpsFixtureBuilder();
+        fixture.AddPage().Glyph("Diagnostic fixture", 50, 100);
+        using var stream = scenario == ConversionFailure.InvalidPackage
+            ? new MemoryStream(new byte[] { 1, 2, 3 })
+            : fixture.Build();
+        if (scenario != ConversionFailure.InvalidPackage)
+        {
+            using (var archive = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Update, true))
+            {
+                const string page = "Documents/1/Pages/1.fpage";
+                archive.GetEntry(page)!.Delete();
+                if (scenario == ConversionFailure.InvalidXml)
+                {
+                    using var writer = new StreamWriter(archive.CreateEntry(page).Open());
+                    writer.Write("<broken");
+                }
+            }
+            stream.Position = 0;
+        }
+
+        try
+        {
+            await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None);
+            throw new Exception("Expected conversion failure: " + scenario);
+        }
+        catch (ConversionException exception)
+        {
+            AssertEx.Equal(scenario, exception.Failure);
+        }
+    }
+}
+
+static async Task InterleavedPrintPackage()
+{
+    var fixture = new OxpsFixtureBuilder();
+    var png = System.Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+    fixture.AddPngResource("Resources/Images/pixel.png", png);
+    fixture.AddPage().Glyph("Interleaved café 漢字", 50, 100);
+    fixture.AddPage().Glyph("Second printed page", 50, 100).Image("/Resources/Images/pixel.png", 50, 150, 10, 10);
+    using var original = fixture.Build();
+    using var interleaved = new MemoryStream();
+    using (var source = new System.IO.Compression.ZipArchive(original, System.IO.Compression.ZipArchiveMode.Read, true))
+    using (var target = new System.IO.Compression.ZipArchive(interleaved, System.IO.Compression.ZipArchiveMode.Create, true))
+    {
+        foreach (var entry in source.Entries.Reverse())
+        {
+            using var bytes = new MemoryStream();
+            using (var input = entry.Open()) input.CopyTo(bytes);
+            var data = bytes.ToArray();
+            if (entry.FullName.EndsWith("2.fpage", StringComparison.Ordinal))
+            {
+                using var whole = target.CreateEntry(entry.FullName).Open();
+                whole.Write(data, 0, data.Length);
+                continue;
+            }
+            // Deliberately split inside XML and UTF-8 characters, with >10 pieces
+            // and reverse ZIP order to catch lexicographic piece sorting.
+            var count = (data.Length + 6) / 7;
+            for (var index = count - 1; index >= 0; index--)
+            {
+                var suffix = index == count - 1 ? "].last.piece" : "].piece";
+                using var output = target.CreateEntry(entry.FullName + "/[" + index + suffix).Open();
+                output.Write(data, index * 7, Math.Min(7, data.Length - index * 7));
+            }
+        }
+    }
+    interleaved.Position = 0;
+    using var forward = new ForwardOnlyStream(interleaved.ToArray());
+    var sink = new MemoryAssetSink();
+    var result = await new OxpsToMarkdownConverter().ConvertAsync(forward, ConversionOptions.Default, sink, CancellationToken.None);
+    AssertEx.Contains("Interleaved café 漢字", result.Markdown);
+    AssertEx.Contains("Second printed page", result.Markdown);
+    AssertEx.Equal(2, result.PageCount);
+    AssertEx.Equal(1, sink.Assets.Count);
+}
+
+static async Task InvalidInterleavedPieces()
+{
+    foreach (var names in new[]
+    {
+        new[] { "part/[1].last.piece" }, // Missing first piece.
+        new[] { "part/[0].piece", "part/[2].last.piece" }, // Gap.
+        new[] { "part/[0].piece" }, // Missing final marker.
+        new[] { "part/[0].last.piece", "part/[1].last.piece" }, // Multiple final markers.
+        new[] { "part/[0].piece", "part/[0].last.piece" }, // Duplicate index.
+        new[] { "part", "part/[0].last.piece" }, // Whole and split same part.
+    })
+    {
+        using var stream = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create, true))
+            foreach (var name in names) zip.CreateEntry(name);
+        stream.Position = 0;
+        try
+        {
+            await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None);
+            throw new Exception("Expected invalid piece sequence to fail.");
+        }
+        catch (ConversionException exception)
+        {
+            AssertEx.Equal(ConversionFailure.InvalidPackage, exception.Failure);
+        }
+    }
 }
 
 static async Task MissingImageWarning()

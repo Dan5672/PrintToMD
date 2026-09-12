@@ -58,7 +58,7 @@ Windows only installs an MSIX that carries a signature it trusts, so installing 
 
 ### 1. Download a build
 
-Open the [most recent successful build](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), download the `Print2Md-unsigned-x64` artifact, and extract it. It contains `Print2Md.App_1.0.0.0_x64.msix`.
+Open the [most recent successful build](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), download the `Print2Md-unsigned-x64` artifact, and extract it. Use the `.msix` for version `1.0.1.0` or later, which includes support for interleaved Windows print packages and specific conversion failure diagnostics.
 
 ### 2. Sign and install it
 
@@ -119,7 +119,7 @@ For the best result, use the application's standard print layout and avoid optio
 - Conversion happens locally on the PC.
 - The package declares no network capability.
 - Document text, filenames, usernames, and selected paths are not written to diagnostic logs.
-- If a conversion fails, the log contains only a UTC timestamp, exception type, and Windows error code.
+- If a conversion fails, the log contains a UTC timestamp, processing stage, fixed failure code, package version, and exception types and Windows error codes. Exception messages are excluded because they can contain document part names.
 
 ## Troubleshooting
 
@@ -149,7 +149,7 @@ Print to Markdown shows a notification when conversion fails. A content-free dia
 %LOCALAPPDATA%\Packages\<Print2Md package family>\LocalState\print2md.log
 ```
 
-Please include the exception type and error code from that file when [opening a bug report](https://github.com/Dan5672/PrintToMD/issues/new). Do not attach a private source document unless you intentionally want to share it.
+Please include the diagnostic entry from that file when [opening a bug report](https://github.com/Dan5672/PrintToMD/issues/new). New builds distinguish unsupported input (`UnsupportedFormat`), invalid ZIP data (`InvalidPackage`), invalid XML (`InvalidXml`), missing document structure (`MissingSequence`, `MissingPart`, `MissingPageRoot`), and documents without pages (`NoPages`). Older builds only report `ConversionException`, which cannot identify which of these failures occurred. Do not attach a private source document unless you intentionally want to share it.
 
 ### Uninstall the preview
 

@@ -22,14 +22,14 @@ Print2Md.Tasks.VirtualPrinterBackgroundTask
         ├── OmittedAssetSink
         │     declines every image
         │
-        └── WriteTextAsync(target)
+        └── target.OpenAsync → DataWriter → flush
 ```
 
 The MSIX declaration uses `PreferredInputFormat="application/oxps"` and `OutputFileTypes="md"`. Windows owns destination selection and supplies both the OXPS stream and selected `StorageFile` to the background task.
 
 ## Conversion rules
 
-- OXPS parts are resolved from package relationships; XML parsing prohibits DTDs and external resolution.
+- OXPS parts are resolved from package relationships. Interleaved OPC pieces (`[0].piece` through `[N].last.piece`) are validated and joined in numeric order before XML or image decoding; ordinary and interleaved parts can coexist. XML parsing prohibits DTDs and external resolution.
 - Glyph runs are grouped by transformed baselines, then joined using their measured or estimated advance widths.
 - Body font size is the character-weighted document median. Larger short lines become Markdown headings.
 - A glyph-level horizontal gutter separates prose columns. A bold first aligned row is required before the same geometry is treated as a Markdown table.
@@ -64,4 +64,3 @@ Cancellation reports `Canceled`; parsing, conversion, and I/O failures report `F
 - Package XML parsing disables DTD processing and external XML resolution.
 - Diagnostics exclude document content, job names, usernames, and file paths.
 - The package targets the Windows 11 driverless virtual-printer API and does not rely on legacy v3/v4 print drivers.
-
