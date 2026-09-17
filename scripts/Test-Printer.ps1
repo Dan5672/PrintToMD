@@ -36,8 +36,10 @@ try {
     }
     $document.PrinterSettings.PrinterName = 'Print to Markdown'
     if (-not $document.PrinterSettings.IsValid) { throw 'Print to Markdown is not installed.' }
-    $document.DocumentName = 'Print2Md synthetic smoke test'
-    $document.PrinterSettings.PrintToFile = $true
+    $document.DocumentName = 'Print2Md ' + $Mode + ' smoke test'
+    # Let the virtual printer request its output through the normal Save As flow.
+    # Forced GDI print-to-file can fail with Access Denied before app activation.
+    $document.PrinterSettings.PrintToFile = $false
     $document.PrinterSettings.PrintFileName = $destination
     $document.PrintController = New-Object System.Drawing.Printing.StandardPrintController
     $document.add_PrintPage({
@@ -51,6 +53,7 @@ try {
         }
         $eventArgs.HasMorePages = $false
     })
+    Write-Output "Printing $Mode test. If Save As appears, choose: $destination"
     $document.Print()
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
