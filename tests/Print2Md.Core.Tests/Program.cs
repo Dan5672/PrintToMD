@@ -131,6 +131,8 @@ static MemoryStream PdfFixture(bool includeText, bool addBlankPage = false)
         page.AddText("PDF conversion works", 24, new UglyToad.PdfPig.Core.PdfPoint(50, 760), font);
         page.AddText("This is selectable PDF text.", 12, new UglyToad.PdfPig.Core.PdfPoint(50, 700), font);
         page.AddText("Another paragraph with *literal* stars.", 12, new UglyToad.PdfPig.Core.PdfPoint(50, 660), font);
+        var png = System.Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        page.AddPng(png, new UglyToad.PdfPig.Core.PdfRectangle(50, 600, 60, 610));
     }
     if (addBlankPage) builder.AddPage(UglyToad.PdfPig.Content.PageSize.A4);
     return new MemoryStream(builder.Build());
@@ -145,6 +147,8 @@ static async Task PdfTextExtraction()
     AssertEx.Contains("This is selectable PDF text.", result.Markdown);
     AssertEx.Contains("\\*literal\\*", result.Markdown);
     AssertEx.Equal(1, result.PageCount);
+    AssertEx.Equal(1, result.ImageCount);
+    AssertEx.Contains("was omitted", result.Markdown);
 }
 
 static async Task PdfOcrFallback()

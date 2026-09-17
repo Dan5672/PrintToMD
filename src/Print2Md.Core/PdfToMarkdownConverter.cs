@@ -53,6 +53,16 @@ public sealed class PdfToMarkdownConverter
                             });
                         }
                         imageCount += source.NumberOfImages;
+                        foreach (var image in source.GetImages())
+                        {
+                            // Keep placement for the omission marker without decoding or saving image bytes.
+                            page.Images.Add(new ImageModel
+                            {
+                                X = image.BoundingBox.Left, Y = source.Height - image.BoundingBox.Top,
+                                Width = image.BoundingBox.Width, Height = image.BoundingBox.Height, Omitted = true,
+                            });
+                            warnings.Add(new ConversionWarning("image-omitted", "An image was omitted from the Markdown.", page.Number));
+                        }
                         document.Pages.Add(page);
                     }
                 }
