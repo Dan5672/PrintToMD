@@ -47,7 +47,12 @@ internal sealed class LayoutAnalyzer
                 blocks.Add(new MarkdownBlock(image.Y, $"<!-- Print2Md: an image on page {page.Number} was omitted; this preview does not save images. -->"));
             }
 
-            if (lines.Count == 0 && page.Images.Count > 0)
+            if (page.OcrAttempted)
+            {
+                blocks.Insert(0, new MarkdownBlock(-1, $"<!-- Print2Md: local OCR was used on page {page.Number}; review recognition accuracy. -->"));
+            }
+
+            if (lines.Count == 0 && page.Images.Count > 0 && !page.OcrAttempted)
             {
                 warnings.Add(new ConversionWarning("ocr-not-performed", "This page contains images but no extractable text; OCR was not performed.", page.Number));
                 blocks.Insert(0, new MarkdownBlock(-1, $"<!-- Print2Md: page {page.Number} contains image-only content; OCR was not performed. -->"));
@@ -55,6 +60,7 @@ internal sealed class LayoutAnalyzer
             else if (lines.Count == 0 && page.Images.Count == 0)
             {
                 warnings.Add(new ConversionWarning("empty-page", "This page contains no extractable text or images.", page.Number));
+                blocks.Add(new MarkdownBlock(-1, $"<!-- Print2Md: no readable text was recovered from page {page.Number}. -->"));
             }
 
             AppendBlocks(output, blocks, orderedLines);

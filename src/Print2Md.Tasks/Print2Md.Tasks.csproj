@@ -40,6 +40,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="OmittedAssetSink.cs" />
     <Compile Include="VirtualPrinterBackgroundTask.cs" />
+    <Compile Include="WindowsPageTextRecognizer.cs" />
     <EmbeddedResource Include="Properties\Print2Md.Tasks.rd.xml" />
   </ItemGroup>
   <ItemGroup>

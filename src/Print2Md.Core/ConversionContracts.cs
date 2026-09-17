@@ -135,6 +135,9 @@ public enum ConversionFailure
     MissingSequence,
     MissingPageRoot,
     MissingPart,
+    InvalidPdf,
+    NoExtractableText,
+    OcrUnavailable,
 }
 
 public sealed class ConversionException : Exception

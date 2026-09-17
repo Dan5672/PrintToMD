@@ -23,6 +23,7 @@ internal sealed class XpsPageModel
     public int GlyphRunCount { get; set; }
 
     public int GlyphRunsWithoutText { get; set; }
+    public bool OcrAttempted { get; set; }
 }
 
 internal sealed class TextRunModel
@@ -133,4 +134,3 @@ internal readonly struct Matrix2D
         (OffsetX * child.M11) + (OffsetY * child.M21) + child.OffsetX,
         (OffsetX * child.M12) + (OffsetY * child.M22) + child.OffsetY);
 }
-

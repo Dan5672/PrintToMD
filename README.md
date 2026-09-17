@@ -109,7 +109,7 @@ A print job contains positioned text and page graphics, not the source document'
 - Complex or borderless tables may be emitted as ordinary paragraphs.
 - Unusual columns, writing directions, or layered graphics may not retain their intended reading order.
 - Page layout will not be reproduced pixel-for-pixel; the goal is readable Markdown.
-- Images are not saved, and **OCR is not performed**. A scanned or image-only page therefore produces no text, and the Markdown records where its content was so this is not mistaken for lost text.
+- Images are not saved. Pages without extractable text are rendered and processed with local Windows OCR, including scanned pages and text drawn as vector outlines. OCR requires an installed Windows recognition language and can misread characters or layout; affected pages are marked for review. A job with no recovered text reports failure instead of silently producing an empty document.
 - Content that an application does not include in its print output cannot be recovered.
 
 For the best result, use the application's standard print layout and avoid options such as multiple source pages per printed sheet.
@@ -139,7 +139,7 @@ This is expected in the current preview. Images are replaced by an HTML comment 
 
 ### A scanned document has no selectable text
 
-This is expected in the current preview. The app does not perform OCR, and a page with no selectable text produces no Markdown text.
+Version 1.0.6.0 extracts text directly from PDF passthrough and uses Windows OCR on pages without extractable text. If the app reports `OcrUnavailable`, install the appropriate Windows language/OCR component. If it reports `NoExtractableText`, neither extraction nor OCR could recover readable text.
 
 ### Windows reports that the print job failed
 

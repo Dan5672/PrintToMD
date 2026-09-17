@@ -17,10 +17,9 @@
                 </StackPanel>
             </Border>
             <TextBlock Margin="0,24,0,0" TextWrapping="Wrap"
-                       Text="Images are saved beside the Markdown file in a .assets folder. Conversion happens entirely on this PC. Scanned text is retained as an image; OCR is not performed." />
+                       Text="Conversion happens entirely on this PC. PDF text is extracted directly; pages without text use Windows OCR. Review OCR results for accuracy. Images are not saved." />
             <TextBlock Margin="0,16,0,0" Opacity="0.7" TextWrapping="Wrap"
                        Text="Requires Windows 11 version 24H2 or later." />
         </StackPanel>
     </ScrollViewer>
 </Page>
-

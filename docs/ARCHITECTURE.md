@@ -35,7 +35,9 @@ The MSIX declaration uses `PreferredInputFormat="application/oxps"` and `OutputF
 - A glyph-level horizontal gutter separates prose columns. A bold first aligned row is required before the same geometry is treated as a Markdown table.
 - Margin text is normalized for whitespace and changing digits. It is removed only when it occurs in the outer 10% on at least three pages and 60% of the document.
 - A sink may decline an image by returning `null`. The image is then omitted, marked in the Markdown with an HTML comment, and reported as an `image-omitted` warning.
-- Image-only pages receive a Markdown HTML comment plus a structured warning; no OCR is attempted.
+- PDF passthrough is parsed with PdfPig into the same positioned-text model used by the OXPS layout renderer.
+- In the Windows printer task, pages with no extractable text use local Windows OCR. OXPS is converted to PDF using the print workflow converter only if page recovery is needed, then Windows renders the affected pages at up to 200 DPI (bounded by the OCR image-size limit). Extractable-text pages retain their original text. OCR pages are marked for review; a wholly unreadable job fails with `NoExtractableText`.
+- The live input stream is buffered once in memory so extraction and fallback rendering can read independently. Buffers are disposed after the job; no diagnostic document copies are saved. Very large jobs can require significant memory.
 
 The core converter exposes one asynchronous boundary:
 

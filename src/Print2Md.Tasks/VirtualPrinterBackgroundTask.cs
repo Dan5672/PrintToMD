@@ -52,17 +52,28 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         }
     }
 
-    private static async Task<long> MeasureAsync(Stream input, CancellationToken cancellationToken)
+    private static async Task<IRandomAccessStream> CreateOcrPdfAsync(
+        PrintWorkflowVirtualPrinterDataAvailableEventArgs args, IRandomAccessStream source, bool isPdf, CancellationToken token)
     {
-        var total = 0L;
-        var buffer = new byte[81920];
-        int read;
-        while ((read = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+        if (isPdf) return source.CloneStream();
+        var pdf = new InMemoryRandomAccessStream();
+        try
         {
-            total += read;
+            using (var input = source.GetInputStreamAt(0))
+            using (var output = pdf.GetOutputStreamAt(0))
+            {
+                var converter = args.GetPdlConverter(PrintWorkflowPdlConversionType.XpsToPdf);
+                await converter.ConvertPdlAsync(args.GetJobPrintTicket(), input, output).AsTask(token);
+                await output.FlushAsync().AsTask(token);
+            }
+            pdf.Seek(0);
+            return pdf;
         }
-
-        return total;
+        catch
+        {
+            pdf.Dispose();
+            throw;
+        }
     }
 
     private void LogProgress(string stage)
@@ -109,28 +120,28 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             string markdown;
             stage = "open-input";
             await WriteProgressAsync(stage);
-            using (var input = args.SourceContent.GetInputStream().AsStreamForRead())
+            using (var buffered = new InMemoryRandomAccessStream())
             {
-                if (isPdf)
+                // Consume the live spool stream once. Both extraction and the optional
+                // renderer can then read it independently without synchronous spool reads.
+                stage = "buffer-input";
+                await WriteProgressAsync(stage);
+                using (var source = args.SourceContent.GetInputStream())
+                using (var destination = buffered.GetOutputStreamAt(0))
                 {
-                    // Passthrough sources such as Chromium hand over their original PDF.
-                    // Confirm that the stream arrives before building a PDF converter.
-                    stage = "measure-pdf";
-                    await WriteProgressAsync(stage);
-                    var length = await MeasureAsync(input, token);
-                    await WriteProgressAsync("pdf-received bytes=" + length);
-                    markdown =
-                        "<!-- Print2Md: this document arrived as PDF passthrough (" + length + " bytes). " +
-                        "PDF conversion is not implemented yet. -->" + Environment.NewLine;
+                    await RandomAccessStream.CopyAsync(source, destination).AsTask(token);
+                    await destination.FlushAsync().AsTask(token);
                 }
-                else
+                await WriteProgressAsync("input-buffered bytes=" + buffered.Size);
+                using (var recognizer = new WindowsPageTextRecognizer(
+                    () => CreateOcrPdfAsync(args, buffered, isPdf, token), WriteProgressAsync))
+                using (var input = buffered.GetInputStreamAt(0).AsStreamForRead())
                 {
-                    stage = "convert";
+                    stage = isPdf ? "convert-pdf" : "convert-oxps";
                     await WriteProgressAsync(stage);
-                    var result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new OmittedAssetSink(), token);
-
-                    // Counts only: these distinguish a rasterized page from one whose glyph
-                    // runs carry no recoverable text, without recording any document content.
+                    var result = isPdf
+                        ? await new PdfToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, token, recognizer)
+                        : await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new OmittedAssetSink(), token, recognizer);
                     await WriteProgressAsync("converted pages=" + result.PageCount +
                         " glyphs=" + result.GlyphRunCount +
                         " glyphs-no-text=" + result.GlyphRunsWithoutText +
@@ -172,7 +183,10 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         {
             await WriteDiagnosticAsync(exception, stage);
             var failure = exception is ConversionException conversion ? conversion.Failure.ToString() : exception.GetType().Name;
-            ShowFailureNotification(stage + ": " + failure);
+            var detail = failure == "NoExtractableText" ? "No readable text found, even after OCR"
+                : failure == "OcrUnavailable" ? "A Windows OCR language must be installed"
+                : stage + ": " + failure;
+            ShowFailureNotification(detail);
         }
         finally
         {

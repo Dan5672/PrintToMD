@@ -15,6 +15,11 @@ var tests = new (string Name, Func<Task> Run)[]
     ("missing image warning", MissingImageWarning),
     ("declined images omitted", DeclinedImagesAreOmitted),
     ("content counts", ContentCounts),
+    ("PDF text extraction", PdfTextExtraction),
+    ("PDF OCR only for textless pages", PdfOcrFallback),
+    ("OXPS textless page recovery", OxpsOcrFallback),
+    ("unreadable jobs fail", UnreadableJobsFail),
+    ("PDF invalid input and cancellation", PdfFailureAndCancellation),
     ("cancellation", Cancellation),
     ("option validation", OptionValidation),
 };
@@ -114,6 +119,91 @@ static async Task ImagesAndWarnings()
     AssertEx.Contains("![Image from page 1](document.assets/", result.Markdown);
     AssertEx.Contains("OCR was not performed", result.Markdown);
     AssertEx.True(result.Warnings.Any(warning => warning.Code == "ocr-not-performed"), "Expected an OCR warning.");
+}
+
+static MemoryStream PdfFixture(bool includeText, bool addBlankPage = false)
+{
+    var builder = new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+    var font = builder.AddStandard14Font(UglyToad.PdfPig.Fonts.Standard14Fonts.Standard14Font.Helvetica);
+    var page = builder.AddPage(UglyToad.PdfPig.Content.PageSize.A4);
+    if (includeText)
+    {
+        page.AddText("PDF conversion works", 24, new UglyToad.PdfPig.Core.PdfPoint(50, 760), font);
+        page.AddText("This is selectable PDF text.", 12, new UglyToad.PdfPig.Core.PdfPoint(50, 700), font);
+        page.AddText("Another paragraph with *literal* stars.", 12, new UglyToad.PdfPig.Core.PdfPoint(50, 660), font);
+    }
+    if (addBlankPage) builder.AddPage(UglyToad.PdfPig.Content.PageSize.A4);
+    return new MemoryStream(builder.Build());
+}
+
+static async Task PdfTextExtraction()
+{
+    using var input = PdfFixture(true);
+    using var forward = new ForwardOnlyStream(input.ToArray());
+    var result = await new PdfToMarkdownConverter().ConvertAsync(forward, ConversionOptions.Default, CancellationToken.None);
+    AssertEx.Contains("PDF conversion works", result.Markdown);
+    AssertEx.Contains("This is selectable PDF text.", result.Markdown);
+    AssertEx.Contains("\\*literal\\*", result.Markdown);
+    AssertEx.Equal(1, result.PageCount);
+}
+
+static async Task PdfOcrFallback()
+{
+    using var input = PdfFixture(true, true);
+    var recognizer = new FixtureRecognizer();
+    var result = await new PdfToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, CancellationToken.None, recognizer);
+    AssertEx.Equal("2", string.Join(",", recognizer.Pages));
+    AssertEx.Contains("This is selectable PDF text.", result.Markdown);
+    AssertEx.Contains("Recovered page 2", result.Markdown);
+    AssertEx.Contains("local OCR", result.Markdown);
+    AssertEx.True(result.Markdown.IndexOf("Recovered page 2", StringComparison.Ordinal) > result.Markdown.IndexOf("selectable PDF text", StringComparison.Ordinal), "Page order was not preserved.");
+}
+
+static async Task OxpsOcrFallback()
+{
+    var fixture = new OxpsFixtureBuilder();
+    fixture.AddPage().Glyph("Original text", 50, 100);
+    fixture.AddPage();
+    var recognizer = new FixtureRecognizer();
+    using var input = fixture.Build();
+    var result = await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None, recognizer);
+    AssertEx.Equal("2", string.Join(",", recognizer.Pages));
+    AssertEx.Contains("Original text", result.Markdown);
+    AssertEx.Contains("Recovered page 2", result.Markdown);
+}
+
+static async Task UnreadableJobsFail()
+{
+    foreach (var pdf in new[] { true, false })
+    {
+        using var input = pdf ? PdfFixture(false) : new OxpsFixtureBuilder().Build();
+        try
+        {
+            var recognizer = new FixtureRecognizer { Empty = true };
+            if (pdf) await new PdfToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, CancellationToken.None, recognizer);
+            else await new OxpsToMarkdownConverter().ConvertAsync(input, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None, recognizer);
+            throw new Exception("A completely textless job must not report success.");
+        }
+        catch (ConversionException exception)
+        {
+            AssertEx.Equal(ConversionFailure.NoExtractableText, exception.Failure);
+        }
+    }
+}
+
+static async Task PdfFailureAndCancellation()
+{
+    using var invalid = new MemoryStream(new byte[] { 1, 2, 3 });
+    try
+    {
+        await new PdfToMarkdownConverter().ConvertAsync(invalid, ConversionOptions.Default, CancellationToken.None);
+        throw new Exception("Invalid PDF should fail.");
+    }
+    catch (ConversionException exception) { AssertEx.Equal(ConversionFailure.InvalidPdf, exception.Failure); }
+    using var valid = PdfFixture(true);
+    using var canceled = new CancellationTokenSource();
+    canceled.Cancel();
+    await AssertEx.ThrowsAsync<OperationCanceledException>(() => new PdfToMarkdownConverter().ConvertAsync(valid, ConversionOptions.Default, canceled.Token));
 }
 
 static async Task ContentCounts()
@@ -306,6 +396,20 @@ static async Task<ConversionResult> Convert(OxpsFixtureBuilder fixture)
 {
     using var stream = fixture.Build();
     return await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None);
+}
+
+internal sealed class FixtureRecognizer : IPageTextRecognizer
+{
+    public List<int> Pages { get; } = new();
+    public bool Empty { get; set; }
+    public Task<IReadOnlyList<RecognizedTextLine>> RecognizeAsync(int pageNumber, double width, double height, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        Pages.Add(pageNumber);
+        IReadOnlyList<RecognizedTextLine> lines = Empty ? Array.Empty<RecognizedTextLine>()
+            : new[] { new RecognizedTextLine("Recovered page " + pageNumber, 50, 100, 200, 12) };
+        return Task.FromResult(lines);
+    }
 }
 
 internal sealed class DecliningAssetSink : IAssetSink
