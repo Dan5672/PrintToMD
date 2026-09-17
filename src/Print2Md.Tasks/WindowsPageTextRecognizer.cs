@@ -70,9 +70,31 @@ internal sealed class WindowsPageTextRecognizer : IPageTextRecognizer, IDisposab
                     var top = line.Words.Min(word => word.BoundingRect.Top);
                     var right = line.Words.Max(word => word.BoundingRect.Right);
                     var bottom = line.Words.Max(word => word.BoundingRect.Bottom);
-                    lines.Add(new RecognizedTextLine(line.Text, left * width / bitmap.PixelWidth,
-                        top * height / bitmap.PixelHeight, (right - left) * width / bitmap.PixelWidth,
-                        (bottom - top) * height / bitmap.PixelHeight));
+                    // Preserve large horizontal gaps as separate cells. Passing a
+                    // whole OCR row as one run erases the table's column geometry.
+                    var words = line.Words.OrderBy(word => word.BoundingRect.Left).ToList();
+                    var cellLeft = left;
+                    var cellRight = left;
+                    var cellText = new List<string>();
+                    var cells = new List<RecognizedTextLine>();
+                    foreach (var word in words)
+                    {
+                        var gap = (word.BoundingRect.Left - cellRight) * width / bitmap.PixelWidth;
+                        if (cellText.Count > 0 && gap >= Math.Max(18, (bottom - top) * height / bitmap.PixelHeight * 2.2))
+                        {
+                            cells.Add(new RecognizedTextLine(string.Join(" ", cellText), cellLeft * width / bitmap.PixelWidth,
+                                top * height / bitmap.PixelHeight, (cellRight - cellLeft) * width / bitmap.PixelWidth,
+                                (bottom - top) * height / bitmap.PixelHeight));
+                            cellText.Clear();
+                        }
+                        if (cellText.Count == 0) cellLeft = word.BoundingRect.Left;
+                        cellText.Add(word.Text);
+                        cellRight = word.BoundingRect.Right;
+                    }
+                    cells.Add(new RecognizedTextLine(cells.Count == 0 ? line.Text : string.Join(" ", cellText),
+                        cellLeft * width / bitmap.PixelWidth, top * height / bitmap.PixelHeight,
+                        (cellRight - cellLeft) * width / bitmap.PixelWidth, (bottom - top) * height / bitmap.PixelHeight));
+                    lines.AddRange(cells);
                 }
                 await progress("ocr-result page=" + pageNumber + " lines=" + lines.Count);
                 return lines;

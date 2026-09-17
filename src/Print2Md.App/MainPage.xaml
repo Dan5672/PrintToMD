@@ -13,7 +13,7 @@
                 <StackPanel>
                     <TextBlock Text="How to use it" FontWeight="SemiBold" FontSize="20" />
                     <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
-                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print to Markdown.&#x0a;3. Choose a .md file in the Windows Save As dialog." />
+                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print to Markdown.&#x0a;3. Choose a .md file in the Windows Save As dialog.&#x0a;4. Wait for the File ready notification before opening it. You can check progress in Windows Notification Center." />
                 </StackPanel>
             </Border>
             <TextBlock Margin="0,24,0,0" TextWrapping="Wrap"

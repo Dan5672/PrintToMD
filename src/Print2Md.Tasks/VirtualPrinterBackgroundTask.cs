@@ -1,6 +1,7 @@
 ﻿using Print2Md.Core;
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -149,6 +150,8 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                         " images=" + result.ImageCount +
                         " chars=" + result.Markdown.Length);
                     markdown = result.Markdown;
+                    foreach (var warning in result.Warnings.GroupBy(item => item.Code))
+                        await WriteProgressAsync("warning code=" + warning.Key + " count=" + warning.Count());
                 }
             }
 

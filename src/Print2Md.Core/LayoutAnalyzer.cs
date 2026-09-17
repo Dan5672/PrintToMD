@@ -42,25 +42,13 @@ internal sealed class LayoutAnalyzer
                 blocks.Add(new MarkdownBlock(image.Y, $"![{alt}]({MarkdownEscaping.LinkDestination(reference.RelativePath)})"));
             }
 
-            foreach (var image in page.Images.Where(item => item.Omitted))
-            {
-                blocks.Add(new MarkdownBlock(image.Y, $"<!-- Print2Md: an image on page {page.Number} was omitted; this preview does not save images. -->"));
-            }
-
-            if (page.OcrAttempted)
-            {
-                blocks.Insert(0, new MarkdownBlock(-1, $"<!-- Print2Md: local OCR was used on page {page.Number}; review recognition accuracy. -->"));
-            }
-
             if (lines.Count == 0 && page.Images.Count > 0 && !page.OcrAttempted)
             {
                 warnings.Add(new ConversionWarning("ocr-not-performed", "This page contains images but no extractable text; OCR was not performed.", page.Number));
-                blocks.Insert(0, new MarkdownBlock(-1, $"<!-- Print2Md: page {page.Number} contains image-only content; OCR was not performed. -->"));
             }
             else if (lines.Count == 0 && page.Images.Count == 0)
             {
                 warnings.Add(new ConversionWarning("empty-page", "This page contains no extractable text or images.", page.Number));
-                blocks.Add(new MarkdownBlock(-1, $"<!-- Print2Md: no readable text was recovered from page {page.Number}. -->"));
             }
 
             AppendBlocks(output, blocks, orderedLines);
@@ -232,6 +220,14 @@ internal sealed class LayoutAnalyzer
             .OrderBy(line => line.Baseline)
             .ToList();
         var looksLikeTable = splitCandidates.Count >= 2 && splitCandidates[0].Bold;
+        // OCR supplies no bold metadata. Preserve short, aligned table rows
+        // instead of reading the entire left column before the right column.
+        if (page.OcrAttempted && splitCandidates.Count >= 3)
+        {
+            looksLikeTable |= splitCandidates.All(line => SplitIntoCells(line).Count >= 2 &&
+                SplitIntoCells(line).All(cell => cell.Length <= 80)) &&
+                splitCandidates.All(line => Math.Abs(line.Left - splitCandidates[0].Left) <= line.FontSize);
+        }
         if (!looksLikeTable)
         {
             var expanded = new List<TextLine>();

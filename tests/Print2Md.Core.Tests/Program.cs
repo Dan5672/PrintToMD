@@ -20,6 +20,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("OXPS textless page recovery", OxpsOcrFallback),
     ("OCR paragraph height variation", OcrParagraphReflow),
     ("wrapped list items", WrappedListItems),
+    ("OCR table geometry", OcrTableGeometry),
     ("unreadable jobs fail", UnreadableJobsFail),
     ("PDF invalid input and cancellation", PdfFailureAndCancellation),
     ("cancellation", Cancellation),
@@ -119,7 +120,7 @@ static async Task ImagesAndWarnings()
 
     AssertEx.Equal(1, sink.Assets.Count);
     AssertEx.Contains("![Image from page 1](document.assets/", result.Markdown);
-    AssertEx.Contains("OCR was not performed", result.Markdown);
+    AssertEx.DoesNotContain("<!-- Print2Md:", result.Markdown);
     AssertEx.True(result.Warnings.Any(warning => warning.Code == "ocr-not-performed"), "Expected an OCR warning.");
 }
 
@@ -150,7 +151,7 @@ static async Task PdfTextExtraction()
     AssertEx.Contains("\\*literal\\*", result.Markdown);
     AssertEx.Equal(1, result.PageCount);
     AssertEx.Equal(1, result.ImageCount);
-    AssertEx.Contains("was omitted", result.Markdown);
+    AssertEx.DoesNotContain("<!-- Print2Md:", result.Markdown);
 }
 
 static async Task PdfOcrFallback()
@@ -161,8 +162,29 @@ static async Task PdfOcrFallback()
     AssertEx.Equal("2", string.Join(",", recognizer.Pages));
     AssertEx.Contains("This is selectable PDF text.", result.Markdown);
     AssertEx.Contains("Recovered page 2", result.Markdown);
-    AssertEx.Contains("local OCR", result.Markdown);
+    AssertEx.DoesNotContain("<!-- Print2Md:", result.Markdown);
     AssertEx.True(result.Markdown.IndexOf("Recovered page 2", StringComparison.Ordinal) > result.Markdown.IndexOf("selectable PDF text", StringComparison.Ordinal), "Page order was not preserved.");
+}
+
+static async Task OcrTableGeometry()
+{
+    var fixture = new OxpsFixtureBuilder();
+    fixture.AddPage(800, 800);
+    var recognizer = new FixtureRecognizer { Lines = new[] {
+        new RecognizedTextLine("Action", 50, 100, 50, 12),
+        new RecognizedTextLine("Context", 400, 100, 70, 12),
+        new RecognizedTextLine("Buy dog food", 50, 120, 150, 12),
+        new RecognizedTextLine("@city or @store", 400, 120, 150, 12),
+        new RecognizedTextLine("Smile to a stranger", 50, 140, 180, 12),
+        new RecognizedTextLine("@everywhere", 400, 140, 100, 12),
+    }};
+    using var stream = fixture.Build();
+    var result = await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None, recognizer);
+    AssertEx.Contains("| Action | Context |", result.Markdown);
+    AssertEx.Contains("| Buy dog food | @city or @store |", result.Markdown);
+    AssertEx.Contains("| Smile to a stranger | @everywhere |", result.Markdown);
+    AssertEx.DoesNotContain("<!-- Print2Md:", result.Markdown);
+    AssertEx.True(result.Warnings.Any(warning => warning.Code == "ocr-used"), "OCR warning should remain in diagnostics.");
 }
 
 static async Task OcrParagraphReflow()
@@ -270,7 +292,7 @@ static async Task DeclinedImagesAreOmitted()
 
     AssertEx.Equal(0, result.Assets.Count);
     AssertEx.True(!result.Markdown.Contains("!["), "A declined image must not be linked from the Markdown." + Environment.NewLine + result.Markdown);
-    AssertEx.Contains("was omitted", result.Markdown);
+    AssertEx.DoesNotContain("<!-- Print2Md:", result.Markdown);
     AssertEx.True(result.Warnings.Any(warning => warning.Code == "image-omitted"), "Expected an image-omitted warning.");
 }
 

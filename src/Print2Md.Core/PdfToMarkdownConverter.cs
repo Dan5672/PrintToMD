@@ -55,7 +55,7 @@ public sealed class PdfToMarkdownConverter
                         imageCount += source.NumberOfImages;
                         foreach (var image in source.GetImages())
                         {
-                            // Keep placement for the omission marker without decoding or saving image bytes.
+                            // Track image geometry and diagnostics without decoding image bytes.
                             page.Images.Add(new ImageModel
                             {
                                 X = image.BoundingBox.Left, Y = source.Height - image.BoundingBox.Top,
