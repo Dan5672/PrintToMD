@@ -310,8 +310,16 @@ internal sealed class LayoutAnalyzer
 
             if (options.DetectLists && TryRenderListItem(line, lines, out var listItem))
             {
-                blocks.Add(new MarkdownBlock(line.Top, listItem));
+                var item = new StringBuilder(listItem);
+                var previousItemLine = line;
                 index++;
+                while (index < lines.Count && lines[index].Left > line.Left + line.FontSize * 0.3 &&
+                    IsParagraphContinuation(previousItemLine, lines[index], bodyFontSize))
+                {
+                    AppendContinuation(item, lines[index]);
+                    previousItemLine = lines[index++];
+                }
+                blocks.Add(new MarkdownBlock(line.Top, item.ToString()));
                 continue;
             }
 
@@ -327,17 +335,7 @@ internal sealed class LayoutAnalyzer
             index++;
             while (index < lines.Count && IsParagraphContinuation(previous, lines[index], bodyFontSize))
             {
-                var nextText = lines[index].MarkdownText.Trim();
-                if (paragraph.Length > 0 && paragraph[paragraph.Length - 1] == '-' && StartsWithLowercase(lines[index].PlainText))
-                {
-                    paragraph.Length--;
-                }
-                else
-                {
-                    paragraph.Append(' ');
-                }
-
-                paragraph.Append(nextText);
+                AppendContinuation(paragraph, lines[index]);
                 previous = lines[index];
                 index++;
             }
@@ -346,6 +344,15 @@ internal sealed class LayoutAnalyzer
         }
 
         return blocks;
+    }
+
+    private static void AppendContinuation(StringBuilder paragraph, TextLine next)
+    {
+        if (paragraph.Length > 0 && paragraph[paragraph.Length - 1] == '-' && StartsWithLowercase(next.PlainText))
+            paragraph.Length--;
+        else
+            paragraph.Append(' ');
+        paragraph.Append(next.MarkdownText.Trim());
     }
 
     private int GetHeadingLevel(TextLine line, double bodyFontSize)

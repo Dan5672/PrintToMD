@@ -18,6 +18,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("PDF text extraction", PdfTextExtraction),
     ("PDF OCR only for textless pages", PdfOcrFallback),
     ("OXPS textless page recovery", OxpsOcrFallback),
+    ("OCR paragraph height variation", OcrParagraphReflow),
+    ("wrapped list items", WrappedListItems),
     ("unreadable jobs fail", UnreadableJobsFail),
     ("PDF invalid input and cancellation", PdfFailureAndCancellation),
     ("cancellation", Cancellation),
@@ -161,6 +163,35 @@ static async Task PdfOcrFallback()
     AssertEx.Contains("Recovered page 2", result.Markdown);
     AssertEx.Contains("local OCR", result.Markdown);
     AssertEx.True(result.Markdown.IndexOf("Recovered page 2", StringComparison.Ordinal) > result.Markdown.IndexOf("selectable PDF text", StringComparison.Ordinal), "Page order was not preserved.");
+}
+
+static async Task OcrParagraphReflow()
+{
+    var fixture = new OxpsFixtureBuilder();
+    fixture.AddPage();
+    var recognizer = new FixtureRecognizer { Lines = new[] {
+        new RecognizedTextLine("These lists will be reviewed regularly and form the backbone", 50, 100, 500, 14),
+        new RecognizedTextLine("of the GTD system. You will need a calendar for", 50, 120, 450, 14),
+        new RecognizedTextLine("date- and time-sensitive tasks and events.", 50, 140, 350, 10),
+        new RecognizedTextLine("A separate paragraph should remain separate.", 50, 190, 400, 14),
+    }};
+    using var stream = fixture.Build();
+    var result = await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None, recognizer);
+    AssertEx.Contains("calendar for date- and time-sensitive", result.Markdown);
+    AssertEx.Contains("events." + Environment.NewLine + Environment.NewLine + "A separate", result.Markdown);
+}
+
+static async Task WrappedListItems()
+{
+    var fixture = new OxpsFixtureBuilder();
+    fixture.AddPage().Glyph("• Look through your someday/maybe list and see if projects should", 50, 100)
+        .Glyph("be moved to the list of current projects.", 62, 116)
+        .Glyph("• Keep this as a separate item.", 50, 140)
+        .Glyph("A separate paragraph.", 50, 190);
+    var result = await Convert(fixture);
+    AssertEx.Contains("projects should be moved", result.Markdown);
+    AssertEx.Contains("- Keep this as a separate item.", result.Markdown);
+    AssertEx.DoesNotContain("item. A separate", result.Markdown);
 }
 
 static async Task OxpsOcrFallback()
@@ -404,6 +435,7 @@ static async Task<ConversionResult> Convert(OxpsFixtureBuilder fixture)
 
 internal sealed class FixtureRecognizer : IPageTextRecognizer
 {
+    public IReadOnlyList<RecognizedTextLine>? Lines { get; set; }
     public List<int> Pages { get; } = new();
     public bool Empty { get; set; }
     public Task<IReadOnlyList<RecognizedTextLine>> RecognizeAsync(int pageNumber, double width, double height, CancellationToken token)
@@ -411,7 +443,7 @@ internal sealed class FixtureRecognizer : IPageTextRecognizer
         token.ThrowIfCancellationRequested();
         Pages.Add(pageNumber);
         IReadOnlyList<RecognizedTextLine> lines = Empty ? Array.Empty<RecognizedTextLine>()
-            : new[] { new RecognizedTextLine("Recovered page " + pageNumber, 50, 100, 200, 12) };
+            : Lines ?? new[] { new RecognizedTextLine("Recovered page " + pageNumber, 50, 100, 200, 12) };
         return Task.FromResult(lines);
     }
 }

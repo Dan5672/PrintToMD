@@ -37,3 +37,9 @@ Version 1.0.6.0 adds PDF text extraction using PdfPig and local Windows OCR for 
 - The separate outline smoke test did not produce its requested output before timeout; it remains unverified. A real document was submitted during that check, as recorded above.
 
 Direct PDF input is covered by converter tests; the successful live jobs above exercise the OXPS-to-PDF rendering and Windows OCR path. It has not been confirmed whether the real six-page document is the original failing PDF. OCR spelling and layout fidelity need review in the saved output.
+
+## Paragraph reflow — 1.0.7.0
+
+Review of `.tools/GTD.md` found paragraphs split before short final lines and wrapped bullet text detached from its item. OCR reports ink bounding-box height, which was being treated as exact font size; small height variations exceeded the paragraph continuation tolerance. Nearby OCR heights now use a prose-derived body height while substantially larger headings retain their size. List rendering now consumes indented continuation lines using the existing paragraph spacing and structural checks.
+
+Both new regression fixtures failed before the change and pass afterward; all 21 converter tests pass. Fixtures check that real paragraph gaps and separate list items are preserved. These are synthetic OCR geometry fixtures based on the GTD symptoms; the original print geometry was not retained. Existing Markdown files are unchanged and a repeat print is needed to assess the improvement on GTD. Cross-page paragraph joining and diagram OCR remain limitations.

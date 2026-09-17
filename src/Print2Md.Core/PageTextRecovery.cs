@@ -39,12 +39,20 @@ internal static class PageTextRecovery
             token.ThrowIfCancellationRequested();
             page.OcrAttempted = true;
             var lines = await recognizer.RecognizeAsync(page.Number, page.Width, page.Height, token).ConfigureAwait(false);
+            // OCR reports ink bounds, not font sizes: a line without capitals or
+            // descenders can be much shorter despite using the same body font.
+            // Estimate body size from prose and normalize nearby heights only.
+            var proseHeights = lines.Where(line => line.Text.Length >= 30 && line.Height > 0)
+                .Select(line => line.Height).OrderBy(height => height).ToList();
+            var bodyHeight = proseHeights.Count == 0 ? 0 : proseHeights[proseHeights.Count / 2];
             foreach (var line in lines.Where(line => !string.IsNullOrWhiteSpace(line.Text)))
             {
                 page.TextRuns.Add(new TextRunModel
                 {
                     Text = line.Text, X = line.X, Y = line.Y + line.Height,
-                    Width = Math.Max(1, line.Width), FontSize = Math.Max(1, line.Height),
+                    Width = Math.Max(1, line.Width),
+                    FontSize = bodyHeight > 0 && line.Height >= bodyHeight * 0.7 && line.Height <= bodyHeight * 1.3
+                        ? bodyHeight : Math.Max(1, line.Height),
                 });
             }
             warnings.Add(new ConversionWarning("ocr-used", "Local OCR was used; review the recovered text for recognition errors.", page.Number));
