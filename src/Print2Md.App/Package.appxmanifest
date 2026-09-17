@@ -7,7 +7,7 @@
   xmlns:printsupport2="http://schemas.microsoft.com/appx/manifest/printsupport/windows10/2"
   IgnorableNamespaces="uap uap10 mp printsupport2">
 
-  <Identity Name="Print2Md" Publisher="CN=Print2Md-Development" Version="1.0.7.0" />
+  <Identity Name="Print2Md" Publisher="CN=Print2Md-Development" Version="1.0.8.0" />
   <mp:PhoneIdentity PhoneProductId="f40b9a2e-dd6a-4e74-b44a-ce390ace5088" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
 
   <Properties>

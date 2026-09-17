@@ -46,7 +46,7 @@ internal sealed class WindowsPageTextRecognizer : IPageTextRecognizer, IDisposab
             pdfStream.Seek(0);
             pdf = await PdfDocument.LoadFromStreamAsync(pdfStream).AsTask(token);
         }
-        await progress("ocr-page-" + pageNumber);
+        await progress("ocr-page-" + pageNumber + "-of-" + pdf.PageCount);
         using (var page = pdf.GetPage((uint)(pageNumber - 1)))
         using (var rendered = new InMemoryRandomAccessStream())
         {

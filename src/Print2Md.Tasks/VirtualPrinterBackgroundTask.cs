@@ -5,11 +5,9 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Background;
-using Windows.Data.Xml.Dom;
 using Windows.Graphics.Printing.Workflow;
 using Windows.Storage;
 using Windows.Storage.Streams;
-using Windows.UI.Notifications;
 
 namespace Print2Md.Tasks;
 
@@ -18,11 +16,13 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
     private BackgroundTaskDeferral deferral;
     private CancellationTokenSource cancellation;
     private readonly string diagnosticJob = Guid.NewGuid().ToString("N");
+    private PrintProgressNotification progressNotification;
 
     public void Run(IBackgroundTaskInstance taskInstance)
     {
         deferral = taskInstance.GetDeferral();
         cancellation = new CancellationTokenSource();
+        progressNotification = new PrintProgressNotification(diagnosticJob);
         taskInstance.Canceled += OnCanceled;
 
         // Run must stay synchronous through session.Start(). Awaiting here returns
@@ -118,6 +118,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             }
 
             string markdown;
+            progressNotification.Start();
             stage = "open-input";
             await WriteProgressAsync(stage);
             using (var buffered = new InMemoryRandomAccessStream())
@@ -173,11 +174,13 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             }
             status = PrintWorkflowSubmittedStatus.Succeeded;
             await WriteProgressAsync("output-written");
+            progressNotification.Finish("File ready", "Your Markdown file has been saved: " + target.Name);
         }
         catch (OperationCanceledException)
         {
             status = PrintWorkflowSubmittedStatus.Canceled;
             await WriteProgressAsync("operation-canceled");
+            progressNotification.Finish("Print to Markdown canceled", "The Markdown file was not completed.");
         }
         catch (Exception exception)
         {
@@ -186,7 +189,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             var detail = failure == "NoExtractableText" ? "No readable text found, even after OCR"
                 : failure == "OcrUnavailable" ? "A Windows OCR language must be installed"
                 : stage + ": " + failure;
-            ShowFailureNotification(detail);
+            progressNotification.Finish("Print to Markdown failed", "The file is not ready. " + detail);
         }
         finally
         {
@@ -206,6 +209,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
     private async void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
     {
         cancellation?.Cancel();
+        progressNotification?.Finish("Print to Markdown stopped", "The Markdown file was not completed. Please print again.");
         await WriteProgressAsync("background-canceled-" + reason);
     }
 
@@ -220,6 +224,12 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
 
     private async Task WriteProgressAsync(string stage)
     {
+        if (stage == "buffer-input") progressNotification?.Update("Receiving document");
+        else if (stage == "convert-oxps" || stage == "convert-pdf") progressNotification?.Update("Extracting text");
+        else if (stage == "prepare-ocr-pdf") progressNotification?.Update("Preparing text recognition");
+        else if (stage.StartsWith("ocr-page-", StringComparison.Ordinal))
+            progressNotification?.Update("Recognizing page " + stage.Substring("ocr-page-".Length).Replace("-of-", " of "));
+        else if (stage == "write-target") progressNotification?.Update("Saving Markdown");
         try
         {
             var file = await ApplicationData.Current.LocalFolder.CreateFileAsync("print2md.log", CreationCollisionOption.OpenIfExists);
@@ -258,23 +268,4 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         }
     }
 
-    private static void ShowFailureNotification(string failureType)
-    {
-        try
-        {
-            var xml = new XmlDocument();
-            xml.LoadXml(
-                "<toast><visual><binding template='ToastGeneric'>" +
-                "<text>Print to Markdown failed</text>" +
-                "<text>The document could not be converted (" + EscapeXml(failureType) + ").</text>" +
-                "</binding></visual></toast>");
-            ToastNotificationManager.CreateToastNotifier().Show(new ToastNotification(xml));
-        }
-        catch
-        {
-            // Windows still receives the failed job status if toast delivery is unavailable.
-        }
-    }
-
-    private static string EscapeXml(string value) => value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 }
