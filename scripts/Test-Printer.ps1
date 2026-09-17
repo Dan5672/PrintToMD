@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $OutputPath = (Join-Path $PSScriptRoot '..\.tools\printer-smoke.md'),
-    [ValidateSet('Text', 'Raster', 'Outline')]
+    [ValidateSet('Text', 'Raster', 'Outline', 'Table')]
     [string] $Mode = 'Text'
 )
 
@@ -17,13 +17,22 @@ $font = New-Object System.Drawing.Font('Arial', 12)
 $raster = $null
 $outline = $null
 try {
-    if ($Mode -eq 'Raster') {
-        $raster = New-Object System.Drawing.Bitmap(1200, 180)
+    if ($Mode -eq 'Raster' -or $Mode -eq 'Table') {
+        $rasterHeight = if ($Mode -eq 'Table') { 500 } else { 180 }
+        $raster = New-Object System.Drawing.Bitmap(1200, $rasterHeight)
         $graphics = [System.Drawing.Graphics]::FromImage($raster)
         $rasterFont = New-Object System.Drawing.Font('Arial', 36)
         try {
             $graphics.Clear([System.Drawing.Color]::White)
             $graphics.DrawString('Print2Md smoke test 12345', $rasterFont, [System.Drawing.Brushes]::Black, 20, 45)
+            if ($Mode -eq 'Table') {
+                $graphics.DrawString('Action', $rasterFont, [System.Drawing.Brushes]::Black, 20, 180)
+                $graphics.DrawString('Context', $rasterFont, [System.Drawing.Brushes]::Black, 700, 180)
+                $graphics.DrawString('Buy dog food', $rasterFont, [System.Drawing.Brushes]::Black, 20, 250)
+                $graphics.DrawString('Store', $rasterFont, [System.Drawing.Brushes]::Black, 700, 250)
+                $graphics.DrawString('Call mum', $rasterFont, [System.Drawing.Brushes]::Black, 20, 320)
+                $graphics.DrawString('Home', $rasterFont, [System.Drawing.Brushes]::Black, 700, 320)
+            }
         } finally {
             $graphics.Dispose()
             $rasterFont.Dispose()
@@ -44,8 +53,8 @@ try {
     $document.PrintController = New-Object System.Drawing.Printing.StandardPrintController
     $document.add_PrintPage({
         param($sender, $eventArgs)
-        if ($Mode -eq 'Raster') {
-            $eventArgs.Graphics.DrawImage($raster, 80, 80, 600, 90)
+        if ($Mode -eq 'Raster' -or $Mode -eq 'Table') {
+            $eventArgs.Graphics.DrawImage($raster, 80, 80, 600, ($raster.Height / 2))
         } elseif ($Mode -eq 'Outline') {
             $eventArgs.Graphics.FillPath([System.Drawing.Brushes]::Black, $outline)
         } else {
@@ -58,8 +67,10 @@ try {
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         try {
-            if ((Test-Path -LiteralPath $destination) -and
-                ([System.IO.File]::ReadAllText($destination).Contains('Print2Md smoke test 12345'))) {
+            $printed = if (Test-Path -LiteralPath $destination) { [System.IO.File]::ReadAllText($destination) } else { '' }
+            $hasTable = $Mode -ne 'Table' -or ($printed.Contains('| Action | Context |') -and
+                $printed.Contains('| Buy dog food | Store |') -and $printed.Contains('| Call mum | Home |'))
+            if ($printed.Contains('Print2Md smoke test 12345') -and $hasTable) {
                 Write-Output "PASS: printed text recovered in $destination"
                 return
             }
