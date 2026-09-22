@@ -59,3 +59,5 @@ The user's repeat print still flattened the table. Inspection of https://hamberg
 The revised OCR-only detector uses column starts from the header, requires at least two aligned data rows, tolerates padded row spacing and joins single-column continuation lines into their preceding cells. Runs crossing a column boundary or not aligned with a column stop the table. Table regions are preserved before column reading order is applied. The Windows OCR adapter retains smaller horizontal gaps for subsequent alignment checks. Native-text column behavior is unchanged.
 
 A regression using GTD's captured OCR geometry failed before the fix and passes afterward, including both wrapped cells and the following paragraph staying outside the table. All 23 converter tests pass.
+
+Windows build `35717271455` passed for `a953d41`. Its signed package was verified and installed in place as 1.0.9.0 on 22 September. An actual-source capture print was submitted using `.tools/Print-GtdCapture.ps1`, targeting `.tools/gtd-table-109.md`; live verification is pending the Windows Save As interaction. Do not treat the geometry regression as proof that the user's full browser print is fixed.
