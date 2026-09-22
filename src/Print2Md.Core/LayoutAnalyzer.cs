@@ -33,7 +33,7 @@ internal sealed class LayoutAnalyzer
                 .Where(line => !ShouldRemoveMarginLine(page, line, repeatedMarginText))
                 .ToList();
             var orderedLines = options.DetectColumns ? OrderForColumns(page, lines) : lines.OrderBy(line => line.Baseline).ThenBy(line => line.Left).ToList();
-            var blocks = RenderTextBlocks(orderedLines, bodyFontSize);
+            var blocks = RenderTextBlocks(orderedLines, bodyFontSize, page.OcrAttempted);
 
             foreach (var image in page.Images.Where(item => item.Reference != null))
             {
@@ -163,6 +163,17 @@ internal sealed class LayoutAnalyzer
 
     private static List<TextLine> OrderForColumns(XpsPageModel page, List<TextLine> lines)
     {
+        var byRow = lines.OrderBy(line => line.Baseline).ThenBy(line => line.Left).ToList();
+        for (var row = 0; page.OcrAttempted && row < byRow.Count; row++)
+        {
+            if (TryRenderAlignedTable(byRow, row, out _, out var tableLength))
+            {
+                var tableOrder = OrderForColumns(page, byRow.Take(row).ToList());
+                tableOrder.AddRange(byRow.Skip(row).Take(tableLength));
+                tableOrder.AddRange(OrderForColumns(page, byRow.Skip(row + tableLength).ToList()));
+                return tableOrder;
+            }
+        }
         if (lines.Count < 3 || page.Width <= 0)
         {
             return lines.OrderBy(line => line.Baseline).ThenBy(line => line.Left).ToList();
@@ -289,13 +300,19 @@ internal sealed class LayoutAnalyzer
         }
     }
 
-    private List<MarkdownBlock> RenderTextBlocks(IReadOnlyList<TextLine> lines, double bodyFontSize)
+    private List<MarkdownBlock> RenderTextBlocks(IReadOnlyList<TextLine> lines, double bodyFontSize, bool ocr)
     {
         var blocks = new List<MarkdownBlock>();
         var index = 0;
         while (index < lines.Count)
         {
             var line = lines[index];
+            if (ocr && options.DetectSimpleTables && TryRenderAlignedTable(lines, index, out var alignedTable, out var alignedLength))
+            {
+                blocks.Add(new MarkdownBlock(line.Top, alignedTable));
+                index += alignedLength;
+                continue;
+            }
             var headingLevel = options.DetectHeadings ? GetHeadingLevel(line, bodyFontSize) : 0;
             if (headingLevel > 0)
             {
@@ -386,6 +403,52 @@ internal sealed class LayoutAnalyzer
         return true;
     }
 
+    private static bool TryRenderAlignedTable(IReadOnlyList<TextLine> lines, int start, out string markdown, out int length)
+    {
+        markdown = string.Empty;
+        length = 0;
+        var header = lines[start];
+        var anchors = new List<double> { header.Left };
+        for (var i = 1; i < header.Runs.Count; i++)
+            if (header.Runs[i].X - (header.Runs[i - 1].X + header.Runs[i - 1].Width) >= Math.Max(18, header.FontSize * 2.2))
+                anchors.Add(header.Runs[i].X);
+        if (anchors.Count < 2 || anchors.Count > 8) return false;
+        var rows = new List<List<string>> { SplitIntoCells(header) };
+        if (rows[0].Any(cell => cell.Length > 80)) return false;
+        var index = start + 1;
+        for (; index < lines.Count && index - start < 100; index++)
+        {
+            var line = lines[index];
+            var font = Math.Max(header.FontSize, line.FontSize);
+            var gap = line.Baseline - lines[index - 1].Baseline;
+            if (gap <= 0 || gap > font * 4 || Math.Abs(line.FontSize - header.FontSize) > font * 0.4) break;
+            var cells = anchors.Select(_ => new List<TextRunModel>()).ToList();
+            var valid = true;
+            foreach (var run in line.Runs)
+            {
+                var column = anchors.FindLastIndex(x => run.X >= x - font * 0.6);
+                if (column < 0 || (column + 1 < anchors.Count && run.X + run.Width > anchors[column + 1] - font * 0.2))
+                { valid = false; break; }
+                cells[column].Add(run);
+            }
+            if (!valid || cells.Where(cell => cell.Count > 0).Any(cell =>
+                Math.Abs(cell[0].X - anchors[cells.IndexOf(cell)]) > font * 0.6)) break;
+            var values = cells.Select(cell => JoinRuns(cell, false)).ToList();
+            if (values.All(value => value.Length > 0)) rows.Add(values);
+            else if (rows.Count > 1 && gap <= font * 1.8)
+            {
+                for (var column = 0; column < values.Count; column++)
+                    if (values[column].Length > 0) rows[rows.Count - 1][column] += " " + values[column];
+            }
+            else break;
+        }
+        // Require header plus two complete data rows before relaxing row spacing.
+        if (rows.Count < 3) return false;
+        markdown = RenderTableRows(rows);
+        length = index - start;
+        return true;
+    }
+
     private static bool TryRenderTable(IReadOnlyList<TextLine> lines, int start, out string markdown, out int length)
     {
         markdown = string.Empty;
@@ -422,6 +485,13 @@ internal sealed class LayoutAnalyzer
             return false;
         }
 
+        markdown = RenderTableRows(rows);
+        length = rows.Count;
+        return true;
+    }
+
+    private static string RenderTableRows(List<List<string>> rows)
+    {
         var builder = new StringBuilder();
         builder.Append("| ").Append(string.Join(" | ", rows[0].Select(MarkdownEscaping.TableCell))).AppendLine(" |");
         builder.Append("| ").Append(string.Join(" | ", rows[0].Select(_ => "---"))).AppendLine(" |");
@@ -430,9 +500,7 @@ internal sealed class LayoutAnalyzer
             builder.Append("| ").Append(string.Join(" | ", row.Select(MarkdownEscaping.TableCell))).AppendLine(" |");
         }
 
-        markdown = builder.ToString().TrimEnd();
-        length = rows.Count;
-        return true;
+        return builder.ToString().TrimEnd();
     }
 
     private static List<string> SplitIntoCells(TextLine line)

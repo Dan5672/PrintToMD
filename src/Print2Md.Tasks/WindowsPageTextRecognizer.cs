@@ -80,7 +80,7 @@ internal sealed class WindowsPageTextRecognizer : IPageTextRecognizer, IDisposab
                     foreach (var word in words)
                     {
                         var gap = (word.BoundingRect.Left - cellRight) * width / bitmap.PixelWidth;
-                        if (cellText.Count > 0 && gap >= Math.Max(18, (bottom - top) * height / bitmap.PixelHeight * 2.2))
+                        if (cellText.Count > 0 && gap >= Math.Max(8, (bottom - top) * height / bitmap.PixelHeight * 0.9))
                         {
                             cells.Add(new RecognizedTextLine(string.Join(" ", cellText), cellLeft * width / bitmap.PixelWidth,
                                 top * height / bitmap.PixelHeight, (cellRight - cellLeft) * width / bitmap.PixelWidth,

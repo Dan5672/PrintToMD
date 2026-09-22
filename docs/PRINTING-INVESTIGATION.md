@@ -51,3 +51,11 @@ After the target is selected, a tagged Windows notification shows receiving, ext
 Conversion-status comments are removed from Markdown. Warning codes and counts are retained in diagnostics. OCR now preserves widely separated cells on a recognized line, rather than discarding horizontal geometry by creating one text run per line. Short OCR table rows no longer require bold metadata to avoid column-order splitting. A synthetic Action/Context table regression passes, along with all 22 converter tests; actual GTD table reconstruction still needs a repeat print.
 
 Windows build `35207413081` passed for `884cf81`; the signed 1.0.8.0 package was installed in place. The live image-only table smoke test passed: `.tools/printer-108-table.md` contains a proper Action/Context table with both rows intact and no conversion comments. Windows notification history contains File ready for that exact output filename. The intermediate popup visibility still needs user confirmation; notification delivery is enabled on this machine. `scripts/Test-Printer.ps1 -Mode Table` reproduces the end-to-end test and verifies the table cells as well as the smoke text.
+
+## GTD table follow-up — 1.0.9.0
+
+The user's repeat print still flattened the table. Inspection of https://hamberg.no/gtd/ found bordered cells with 8px padding and wrapped content. Windows OCR on a browser capture supplied real geometry: header baseline 221, first row 272, continuation 298, next row around 349. The old 2.2-times-font row limit rejected the padded rows, and requiring a wide gap in every row rejected long cells. Wrapped cells also interrupted table detection.
+
+The revised OCR-only detector uses column starts from the header, requires at least two aligned data rows, tolerates padded row spacing and joins single-column continuation lines into their preceding cells. Runs crossing a column boundary or not aligned with a column stop the table. Table regions are preserved before column reading order is applied. The Windows OCR adapter retains smaller horizontal gaps for subsequent alignment checks. Native-text column behavior is unchanged.
+
+A regression using GTD's captured OCR geometry failed before the fix and passes afterward, including both wrapped cells and the following paragraph staying outside the table. All 23 converter tests pass.

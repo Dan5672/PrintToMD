@@ -21,6 +21,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("OCR paragraph height variation", OcrParagraphReflow),
     ("wrapped list items", WrappedListItems),
     ("OCR table geometry", OcrTableGeometry),
+    ("GTD padded wrapped OCR table", GtdPaddedTable),
     ("unreadable jobs fail", UnreadableJobsFail),
     ("PDF invalid input and cancellation", PdfFailureAndCancellation),
     ("cancellation", Cancellation),
@@ -164,6 +165,33 @@ static async Task PdfOcrFallback()
     AssertEx.Contains("Recovered page 2", result.Markdown);
     AssertEx.DoesNotContain("<!-- Print2Md:", result.Markdown);
     AssertEx.True(result.Markdown.IndexOf("Recovered page 2", StringComparison.Ordinal) > result.Markdown.IndexOf("selectable PDF text", StringComparison.Ordinal), "Page order was not preserved.");
+}
+
+static async Task GtdPaddedTable()
+{
+    // Actual Windows OCR line bounds from https://hamberg.no/gtd/, 1256px viewport.
+    var fixture = new OxpsFixtureBuilder();
+    fixture.AddPage(1256, 628);
+    var recognizer = new FixtureRecognizer { Lines = new[] {
+        new RecognizedTextLine("Action", 327, 207, 59, 14),
+        new RecognizedTextLine("Context", 632, 207, 70, 14),
+        new RecognizedTextLine("Buy more rainbow-coloured dog", 331, 253, 273, 19),
+        new RecognizedTextLine("@ city or @ store", 636, 253, 156, 19),
+        new RecognizedTextLine("food", 327, 283, 39, 15),
+        new RecognizedTextLine("Browse cuteoverload.com", 331, 330, 219, 15),
+        new RecognizedTextLine("@ computer or @ the world wide", 636, 330, 288, 19),
+        new RecognizedTextLine("webs", 631, 360, 43, 15),
+        new RecognizedTextLine("Smile to a stranger", 332, 407, 157, 19),
+        new RecognizedTextLine("@ everywhere", 636, 407, 121, 19),
+        new RecognizedTextLine("How many contexts you need depends on your next actions.", 253, 466, 740, 19),
+    }};
+    using var stream = fixture.Build();
+    var result = await new OxpsToMarkdownConverter().ConvertAsync(stream, ConversionOptions.Default, new MemoryAssetSink(), CancellationToken.None, recognizer);
+    AssertEx.Contains("| Action | Context |", result.Markdown);
+    AssertEx.Contains("| Buy more rainbow-coloured dog food | @ city or @ store |", result.Markdown);
+    AssertEx.Contains("| Browse cuteoverload.com | @ computer or @ the world wide webs |", result.Markdown);
+    AssertEx.Contains("| Smile to a stranger | @ everywhere |", result.Markdown);
+    AssertEx.DoesNotContain("| How many", result.Markdown);
 }
 
 static async Task OcrTableGeometry()
