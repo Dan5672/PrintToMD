@@ -33,7 +33,7 @@ internal sealed class LayoutAnalyzer
                 .Where(line => !ShouldRemoveMarginLine(page, line, repeatedMarginText))
                 .ToList();
             var orderedLines = options.DetectColumns ? OrderForColumns(page, lines) : lines.OrderBy(line => line.Baseline).ThenBy(line => line.Left).ToList();
-            var blocks = RenderTextBlocks(orderedLines, bodyFontSize);
+            var blocks = RenderTextBlocks(orderedLines, bodyFontSize, page.OcrAttempted);
 
             foreach (var image in page.Images.Where(item => item.Reference != null))
             {
@@ -42,10 +42,9 @@ internal sealed class LayoutAnalyzer
                 blocks.Add(new MarkdownBlock(image.Y, $"![{alt}]({MarkdownEscaping.LinkDestination(reference.RelativePath)})"));
             }
 
-            if (lines.Count == 0 && page.Images.Count > 0)
+            if (lines.Count == 0 && page.Images.Count > 0 && !page.OcrAttempted)
             {
                 warnings.Add(new ConversionWarning("ocr-not-performed", "This page contains images but no extractable text; OCR was not performed.", page.Number));
-                blocks.Insert(0, new MarkdownBlock(-1, $"<!-- Print2Md: page {page.Number} contains image-only content; OCR was not performed. -->"));
             }
             else if (lines.Count == 0 && page.Images.Count == 0)
             {
@@ -164,6 +163,17 @@ internal sealed class LayoutAnalyzer
 
     private static List<TextLine> OrderForColumns(XpsPageModel page, List<TextLine> lines)
     {
+        var byRow = lines.OrderBy(line => line.Baseline).ThenBy(line => line.Left).ToList();
+        for (var row = 0; page.OcrAttempted && row < byRow.Count; row++)
+        {
+            if (TryRenderAlignedTable(byRow, row, out _, out var tableLength))
+            {
+                var tableOrder = OrderForColumns(page, byRow.Take(row).ToList());
+                tableOrder.AddRange(byRow.Skip(row).Take(tableLength));
+                tableOrder.AddRange(OrderForColumns(page, byRow.Skip(row + tableLength).ToList()));
+                return tableOrder;
+            }
+        }
         if (lines.Count < 3 || page.Width <= 0)
         {
             return lines.OrderBy(line => line.Baseline).ThenBy(line => line.Left).ToList();
@@ -221,6 +231,14 @@ internal sealed class LayoutAnalyzer
             .OrderBy(line => line.Baseline)
             .ToList();
         var looksLikeTable = splitCandidates.Count >= 2 && splitCandidates[0].Bold;
+        // OCR supplies no bold metadata. Preserve short, aligned table rows
+        // instead of reading the entire left column before the right column.
+        if (page.OcrAttempted && splitCandidates.Count >= 3)
+        {
+            looksLikeTable |= splitCandidates.All(line => SplitIntoCells(line).Count >= 2 &&
+                SplitIntoCells(line).All(cell => cell.Length <= 80)) &&
+                splitCandidates.All(line => Math.Abs(line.Left - splitCandidates[0].Left) <= line.FontSize);
+        }
         if (!looksLikeTable)
         {
             var expanded = new List<TextLine>();
@@ -282,13 +300,19 @@ internal sealed class LayoutAnalyzer
         }
     }
 
-    private List<MarkdownBlock> RenderTextBlocks(IReadOnlyList<TextLine> lines, double bodyFontSize)
+    private List<MarkdownBlock> RenderTextBlocks(IReadOnlyList<TextLine> lines, double bodyFontSize, bool ocr)
     {
         var blocks = new List<MarkdownBlock>();
         var index = 0;
         while (index < lines.Count)
         {
             var line = lines[index];
+            if (ocr && options.DetectSimpleTables && TryRenderAlignedTable(lines, index, out var alignedTable, out var alignedLength))
+            {
+                blocks.Add(new MarkdownBlock(line.Top, alignedTable));
+                index += alignedLength;
+                continue;
+            }
             var headingLevel = options.DetectHeadings ? GetHeadingLevel(line, bodyFontSize) : 0;
             if (headingLevel > 0)
             {
@@ -299,8 +323,16 @@ internal sealed class LayoutAnalyzer
 
             if (options.DetectLists && TryRenderListItem(line, lines, out var listItem))
             {
-                blocks.Add(new MarkdownBlock(line.Top, listItem));
+                var item = new StringBuilder(listItem);
+                var previousItemLine = line;
                 index++;
+                while (index < lines.Count && lines[index].Left > line.Left + line.FontSize * 0.3 &&
+                    IsParagraphContinuation(previousItemLine, lines[index], bodyFontSize))
+                {
+                    AppendContinuation(item, lines[index]);
+                    previousItemLine = lines[index++];
+                }
+                blocks.Add(new MarkdownBlock(line.Top, item.ToString()));
                 continue;
             }
 
@@ -316,17 +348,7 @@ internal sealed class LayoutAnalyzer
             index++;
             while (index < lines.Count && IsParagraphContinuation(previous, lines[index], bodyFontSize))
             {
-                var nextText = lines[index].MarkdownText.Trim();
-                if (paragraph.Length > 0 && paragraph[paragraph.Length - 1] == '-' && StartsWithLowercase(lines[index].PlainText))
-                {
-                    paragraph.Length--;
-                }
-                else
-                {
-                    paragraph.Append(' ');
-                }
-
-                paragraph.Append(nextText);
+                AppendContinuation(paragraph, lines[index]);
                 previous = lines[index];
                 index++;
             }
@@ -335,6 +357,15 @@ internal sealed class LayoutAnalyzer
         }
 
         return blocks;
+    }
+
+    private static void AppendContinuation(StringBuilder paragraph, TextLine next)
+    {
+        if (paragraph.Length > 0 && paragraph[paragraph.Length - 1] == '-' && StartsWithLowercase(next.PlainText))
+            paragraph.Length--;
+        else
+            paragraph.Append(' ');
+        paragraph.Append(next.MarkdownText.Trim());
     }
 
     private int GetHeadingLevel(TextLine line, double bodyFontSize)
@@ -369,6 +400,52 @@ internal sealed class LayoutAnalyzer
         var content = MarkdownEscaping.Inline(plain.Substring(markerLength).Trim());
         var marker = unordered.Success ? "-" : ordered.Groups[1].Value + ".";
         markdown = new string(' ', level * 2) + marker + " " + content;
+        return true;
+    }
+
+    private static bool TryRenderAlignedTable(IReadOnlyList<TextLine> lines, int start, out string markdown, out int length)
+    {
+        markdown = string.Empty;
+        length = 0;
+        var header = lines[start];
+        var anchors = new List<double> { header.Left };
+        for (var i = 1; i < header.Runs.Count; i++)
+            if (header.Runs[i].X - (header.Runs[i - 1].X + header.Runs[i - 1].Width) >= Math.Max(18, header.FontSize * 2.2))
+                anchors.Add(header.Runs[i].X);
+        if (anchors.Count < 2 || anchors.Count > 8) return false;
+        var rows = new List<List<string>> { SplitIntoCells(header) };
+        if (rows[0].Any(cell => cell.Length > 80)) return false;
+        var index = start + 1;
+        for (; index < lines.Count && index - start < 100; index++)
+        {
+            var line = lines[index];
+            var font = Math.Max(header.FontSize, line.FontSize);
+            var gap = line.Baseline - lines[index - 1].Baseline;
+            if (gap <= 0 || gap > font * 4 || Math.Abs(line.FontSize - header.FontSize) > font * 0.4) break;
+            var cells = anchors.Select(_ => new List<TextRunModel>()).ToList();
+            var valid = true;
+            foreach (var run in line.Runs)
+            {
+                var column = anchors.FindLastIndex(x => run.X >= x - font * 0.6);
+                if (column < 0 || (column + 1 < anchors.Count && run.X + run.Width > anchors[column + 1] - font * 0.2))
+                { valid = false; break; }
+                cells[column].Add(run);
+            }
+            if (!valid || cells.Where(cell => cell.Count > 0).Any(cell =>
+                Math.Abs(cell[0].X - anchors[cells.IndexOf(cell)]) > font * 0.6)) break;
+            var values = cells.Select(cell => JoinRuns(cell, false)).ToList();
+            if (values.All(value => value.Length > 0)) rows.Add(values);
+            else if (rows.Count > 1 && gap <= font * 1.8)
+            {
+                for (var column = 0; column < values.Count; column++)
+                    if (values[column].Length > 0) rows[rows.Count - 1][column] += " " + values[column];
+            }
+            else break;
+        }
+        // Require header plus two complete data rows before relaxing row spacing.
+        if (rows.Count < 3) return false;
+        markdown = RenderTableRows(rows);
+        length = index - start;
         return true;
     }
 
@@ -408,6 +485,13 @@ internal sealed class LayoutAnalyzer
             return false;
         }
 
+        markdown = RenderTableRows(rows);
+        length = rows.Count;
+        return true;
+    }
+
+    private static string RenderTableRows(List<List<string>> rows)
+    {
         var builder = new StringBuilder();
         builder.Append("| ").Append(string.Join(" | ", rows[0].Select(MarkdownEscaping.TableCell))).AppendLine(" |");
         builder.Append("| ").Append(string.Join(" | ", rows[0].Select(_ => "---"))).AppendLine(" |");
@@ -416,9 +500,7 @@ internal sealed class LayoutAnalyzer
             builder.Append("| ").Append(string.Join(" | ", row.Select(MarkdownEscaping.TableCell))).AppendLine(" |");
         }
 
-        markdown = builder.ToString().TrimEnd();
-        length = rows.Count;
-        return true;
+        return builder.ToString().TrimEnd();
     }
 
     private static List<string> SplitIntoCells(TextLine line)

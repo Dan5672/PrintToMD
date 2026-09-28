@@ -7,7 +7,12 @@
 *.appx
 *.appxbundle
 *.appxupload
+*.msix
+*.msixbundle
+*.msixupload
 *.cer
+*.pfx
+*.p12
+artifacts/
 AppPackages/
 TestResults/
-

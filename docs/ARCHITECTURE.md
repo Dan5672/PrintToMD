@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 ## Print workflow
 
@@ -7,9 +7,15 @@ Application print command
         │
         ▼
 Windows print system ── native Save As dialog (.md)
-        │ OXPS + target StorageFile
+        │ OXPS/PDF + target StorageFile
         ▼
 Print2Md.Tasks.VirtualPrinterBackgroundTask
+        │
+        ├── PdfToMarkdownConverter (PDF input)
+        │     PdfPig words → positioned text
+        │
+        ├── WindowsPageTextRecognizer (pages without text)
+        │     render PDF → local OCR → positioned text
         │
         ├── OxpsPackageReader
         │     relationships → documents → fixed pages
@@ -19,23 +25,25 @@ Print2Md.Tasks.VirtualPrinterBackgroundTask
         │     lines → columns/tables → paragraphs/lists/headings
         │     repeated margin suppression
         │
-        ├── StagedAssetSink
-        │     image normalization + SHA-256 filenames
+        ├── OmittedAssetSink
+        │     declines every image
         │
-        └── sibling temporary Markdown → MoveAndReplaceAsync(target)
+        └── target.OpenAsync → DataWriter → flush
 ```
 
-The MSIX declaration uses `PreferredInputFormat="application/oxps"` and `OutputFileTypes="md"`. Windows owns destination selection and supplies both the OXPS stream and selected `StorageFile` to the background task.
+The MSIX declaration prefers OXPS, also accepts PDF, and uses `OutputFileTypes="md"`. Windows owns destination selection and supplies the input stream and selected `StorageFile` to the background task. Background activation must remain synchronous through `session.Start()`.
 
 ## Conversion rules
 
-- OXPS parts are resolved from package relationships; XML parsing prohibits DTDs and external resolution.
+- OXPS parts are resolved from package relationships. Interleaved OPC pieces (`[0].piece` through `[N].last.piece`) are validated and joined in numeric order before XML or image decoding; ordinary and interleaved parts can coexist. XML parsing prohibits DTDs and external resolution.
 - Glyph runs are grouped by transformed baselines, then joined using their measured or estimated advance widths.
 - Body font size is the character-weighted document median. Larger short lines become Markdown headings.
-- A glyph-level horizontal gutter separates prose columns. A bold first aligned row is required before the same geometry is treated as a Markdown table.
+- A glyph-level horizontal gutter separates prose columns. OCR table detection uses header column positions and at least two aligned data rows, tolerates padded rows and joins wrapped cell continuations. Recognized table regions are preserved before column reading order is applied.
 - Margin text is normalized for whitespace and changing digits. It is removed only when it occurs in the outer 10% on at least three pages and 60% of the document.
-- Images are deduplicated by SHA-256. Unsupported image encodings are decoded by Windows Imaging Component and emitted as PNG.
-- Image-only pages remain usable as linked images and receive a Markdown HTML comment plus a structured warning; no OCR is attempted.
+- A sink may decline an image by returning `null`. The image is then omitted and reported as an `image-omitted` warning. Conversion warnings are not inserted into Markdown.
+- PDF passthrough is parsed with PdfPig into the same positioned-text model used by the OXPS layout renderer.
+- In the Windows printer task, pages with no extractable text use local Windows OCR. OXPS is converted to PDF using the print workflow converter only if page recovery is needed, then Windows renders the affected pages at up to 200 DPI (bounded by the OCR image-size limit). Extractable-text pages retain their original text. OCR use is recorded in diagnostics; a wholly unreadable job fails with `NoExtractableText`.
+- The live input stream is buffered once in memory so extraction and fallback rendering can read independently. Buffers are disposed after the job; no diagnostic document copies are saved. Very large jobs can require significant memory.
 
 The core converter exposes one asynchronous boundary:
 
@@ -44,16 +52,21 @@ Task<ConversionResult> ConvertAsync(
     Stream oxps,
     ConversionOptions options,
     IAssetSink assets,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    IPageTextRecognizer? recognizer = null)
 ```
 
 `IAssetSink` keeps file-system and Windows Imaging APIs out of the parser, allowing deterministic in-memory tests.
 
 ## Commit and failure behavior
 
-Images are normalized in memory before output is committed. Asset filenames are derived from source hashes, so retrying a job safely reuses the same names. The final Markdown is first written to a uniquely named sibling file and moved over the selected target only after conversion and asset writes succeed.
+The print system grants the background task access to the `StorageFile` the user named in the Save As dialog and to nothing else. `GetParentAsync` on that file returns `null`, so the task cannot create sibling files: neither an asset folder nor a temporary file to move over the target. Markdown is therefore written directly to the granted file, and `OmittedAssetSink` declines every image.
 
-Cancellation reports `Canceled`; parsing, conversion, and I/O failures report `Failed`. Temporary Markdown is deleted on failure. Already committed content-addressed images can remain after a later failure, but they contain only exact assets from that job and cannot be referenced by a partial Markdown file.
+Restoring images requires a way to write beside the target file, such as the restricted `broadFileSystemAccess` capability, or a change in output format such as embedding images as `data:` URIs.
+
+Cancellation reports `Canceled`; parsing, conversion, and I/O failures report `Failed`. A failure after the write has begun can leave a partially written Markdown file, because the target is written in place.
+
+A per-job Windows notification displays receiving, extraction, OCR page counts and saving stages. File ready is shown only after the target write is flushed and closed. Failure or cancellation replaces the progress notification. Notification delivery failures never interrupt conversion; Windows settings can suppress popups. The target may exist as an empty file while conversion is underway.
 
 ## Security and privacy
 
@@ -62,4 +75,3 @@ Cancellation reports `Canceled`; parsing, conversion, and I/O failures report `F
 - Package XML parsing disables DTD processing and external XML resolution.
 - Diagnostics exclude document content, job names, usernames, and file paths.
 - The package targets the Windows 11 driverless virtual-printer API and does not rely on legacy v3/v4 print drivers.
-

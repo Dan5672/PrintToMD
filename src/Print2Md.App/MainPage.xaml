@@ -13,14 +13,13 @@
                 <StackPanel>
                     <TextBlock Text="How to use it" FontWeight="SemiBold" FontSize="20" />
                     <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
-                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print to Markdown.&#x0a;3. Choose a .md file in the Windows Save As dialog." />
+                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print to Markdown.&#x0a;3. Choose a .md file in the Windows Save As dialog.&#x0a;4. Wait for the File ready notification before opening it. You can check progress in Windows Notification Center." />
                 </StackPanel>
             </Border>
             <TextBlock Margin="0,24,0,0" TextWrapping="Wrap"
-                       Text="Images are saved beside the Markdown file in a .assets folder. Conversion happens entirely on this PC. Scanned text is retained as an image; OCR is not performed." />
+                       Text="Conversion happens entirely on this PC. PDF text is extracted directly; pages without text use Windows OCR. Review OCR results for accuracy. Images are not saved." />
             <TextBlock Margin="0,16,0,0" Opacity="0.7" TextWrapping="Wrap"
                        Text="Requires Windows 11 version 24H2 or later." />
         </StackPanel>
     </ScrollViewer>
 </Page>
-

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Print2Md.Core;
@@ -19,6 +19,11 @@ internal sealed class XpsPageModel
     public List<TextRunModel> TextRuns { get; } = new List<TextRunModel>();
 
     public List<ImageModel> Images { get; } = new List<ImageModel>();
+
+    public int GlyphRunCount { get; set; }
+
+    public int GlyphRunsWithoutText { get; set; }
+    public bool OcrAttempted { get; set; }
 }
 
 internal sealed class TextRunModel
@@ -57,6 +62,8 @@ internal sealed class ImageModel
     public double Height { get; set; }
 
     public AssetReference? Reference { get; set; }
+
+    public bool Omitted { get; set; }
 }
 
 internal sealed class TextLine
@@ -127,4 +134,3 @@ internal readonly struct Matrix2D
         (OffsetX * child.M11) + (OffsetY * child.M21) + child.OffsetX,
         (OffsetX * child.M12) + (OffsetY * child.M22) + child.OffsetY);
 }
-

@@ -73,6 +73,7 @@
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\SplashScreen.png" />
     <Content Include="Config\PrinterPdc.xml" />
+    <Content Include="ThirdParty\PdfPig-LICENSE.txt" />
     <Content Include="Properties\Default.rd.xml" />
   </ItemGroup>
   <ItemGroup>

@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,7 +14,8 @@ public sealed class OxpsToMarkdownConverter
         Stream oxps,
         ConversionOptions options,
         IAssetSink assetSink,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IPageTextRecognizer? recognizer = null)
     {
         if (oxps == null) throw new ArgumentNullException(nameof(oxps));
         if (options == null) throw new ArgumentNullException(nameof(options));
@@ -24,6 +26,8 @@ public sealed class OxpsToMarkdownConverter
         var assets = new List<AssetReference>();
         var reader = new OxpsPackageReader(warnings);
         var document = await reader.ReadAsync(oxps, cancellationToken).ConfigureAwait(false);
+        if (recognizer != null)
+            await PageTextRecovery.RecoverAsync(document, recognizer, warnings, cancellationToken).ConfigureAwait(false);
 
         foreach (var page in document.Pages)
         {
@@ -35,6 +39,13 @@ public sealed class OxpsToMarkdownConverter
                     var reference = await assetSink.WriteAsync(
                         new AssetContent(image.ContentHash, image.ContentType, image.Bytes, page.Number),
                         cancellationToken).ConfigureAwait(false);
+                    if (reference == null)
+                    {
+                        image.Omitted = true;
+                        warnings.Add(new ConversionWarning("image-omitted", "An image was not stored and has been omitted from the Markdown.", page.Number));
+                        continue;
+                    }
+
                     image.Reference = reference;
                     assets.Add(reference);
                 }
@@ -46,10 +57,19 @@ public sealed class OxpsToMarkdownConverter
         }
 
         var markdown = new LayoutAnalyzer(options).Render(document, warnings);
-        return new ConversionResult(markdown, assets.AsReadOnly(), warnings.AsReadOnly(), document.Pages.Count);
+        if (recognizer != null && string.IsNullOrWhiteSpace(markdown))
+            throw new ConversionException(ConversionFailure.NoExtractableText, "No readable text remained after layout processing.");
+        return new ConversionResult(
+            markdown,
+            assets.AsReadOnly(),
+            warnings.AsReadOnly(),
+            document.Pages.Count,
+            document.Pages.Sum(page => page.GlyphRunCount),
+            document.Pages.Sum(page => page.GlyphRunsWithoutText),
+            document.Pages.Sum(page => page.Images.Count));
     }
 
-    private static void ValidateOptions(ConversionOptions options)
+    internal static void ValidateOptions(ConversionOptions options)
     {
         if (options.MarginFraction < 0 || options.MarginFraction > 0.25)
         {

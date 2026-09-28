@@ -31,7 +31,12 @@ public sealed class ConversionOptions
 /// <summary>Receives an image before the converter emits its Markdown reference.</summary>
 public interface IAssetSink
 {
-    Task<AssetReference> WriteAsync(AssetContent asset, CancellationToken cancellationToken);
+    /// <summary>
+    /// Stores an image and returns the reference the Markdown should link to, or
+    /// <c>null</c> when the sink declines to store it. A declined image is omitted
+    /// from the Markdown and reported as an <c>image-omitted</c> warning.
+    /// </summary>
+    Task<AssetReference?> WriteAsync(AssetContent asset, CancellationToken cancellationToken);
 }
 
 public sealed class AssetContent
@@ -84,12 +89,22 @@ public sealed class ConversionWarning
 
 public sealed class ConversionResult
 {
-    internal ConversionResult(string markdown, IReadOnlyList<AssetReference> assets, IReadOnlyList<ConversionWarning> warnings, int pageCount)
+    internal ConversionResult(
+        string markdown,
+        IReadOnlyList<AssetReference> assets,
+        IReadOnlyList<ConversionWarning> warnings,
+        int pageCount,
+        int glyphRunCount,
+        int glyphRunsWithoutText,
+        int imageCount)
     {
         Markdown = markdown;
         Assets = assets;
         Warnings = warnings;
         PageCount = pageCount;
+        GlyphRunCount = glyphRunCount;
+        GlyphRunsWithoutText = glyphRunsWithoutText;
+        ImageCount = imageCount;
     }
 
     public string Markdown { get; }
@@ -99,10 +114,42 @@ public sealed class ConversionResult
     public IReadOnlyList<ConversionWarning> Warnings { get; }
 
     public int PageCount { get; }
+
+    /// <summary>Glyph runs found in the print data, before text recovery.</summary>
+    public int GlyphRunCount { get; }
+
+    /// <summary>Glyph runs carrying no UnicodeString, whose text cannot be recovered.</summary>
+    public int GlyphRunsWithoutText { get; }
+
+    /// <summary>Images found in the print data, whether or not they were stored.</summary>
+    public int ImageCount { get; }
+}
+
+public enum ConversionFailure
+{
+    Unknown,
+    UnsupportedFormat,
+    NoPages,
+    InvalidPackage,
+    InvalidXml,
+    MissingSequence,
+    MissingPageRoot,
+    MissingPart,
+    InvalidPdf,
+    NoExtractableText,
+    OcrUnavailable,
 }
 
 public sealed class ConversionException : Exception
 {
+    public ConversionFailure Failure { get; }
+
+    public ConversionException(ConversionFailure failure, string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+        Failure = failure;
+    }
+
     public ConversionException(string message)
         : base(message)
     {
@@ -113,4 +160,3 @@ public sealed class ConversionException : Exception
     {
     }
 }
-
