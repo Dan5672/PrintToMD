@@ -1,63 +1,47 @@
-# Windows printing investigation — 12 September 2026
+﻿# Printing investigation and verification
 
-## Findings
+Current package: **1.0.9.0**. Last live verification: **28 September 2026**.
 
-The original installed version contained the parent-folder access requirement removed in `a9bc232`. Its log recorded `System.IO.IOException 0x80131620`. A subsequent installed build included that fix but failed with `Print2Md.Core.ConversionException 0x80131500`.
+## Verified behavior
 
-The parser treated ZIP entries as complete OPC parts. Valid OXPS print packages can split a part across `name/[0].piece` through `name/[N].last.piece`. Consequently, the parser could not resolve the document sequence, document, or page when those parts were interleaved. The original tests only supplied complete parts.
+- All **23 converter tests** pass, including interleaved OXPS packages, PDF extraction, OCR fallback, paragraph reflow, wrapped lists and padded tables.
+- The Windows Release package built successfully in [run 35717271455](https://github.com/Dan5672/PrintToMD/actions/runs/35717271455) for application commit `a953d41`, was signed and verified locally, and installed as an in-place update.
+- Live text printing recovered the expected smoke-test text.
+- Live image-only printing exercised Windows' OXPS-to-PDF conversion, rendering and OCR successfully.
+- A real six-page print with no extractable glyphs completed and wrote 15,477 characters.
+- Progress/completion notifications were delivered; the user confirmed seeing a notification.
+- The captured table from [GTD in 15 minutes](https://hamberg.no/gtd/) printed successfully through 1.0.9.0. Inspection confirmed its two-column header, all three data rows, both wrapped cell continuations, no diagnostic comments and surrounding paragraphs outside the table.
 
-The revised parser indexes logical parts, validates contiguous numeric piece sequences, and joins bytes before XML or image decoding. Mixed ordinary/interleaved parts are supported. The background task now writes to the granted target stream directly, avoiding the replace-file transaction used by `FileIO.WriteTextAsync`. Diagnostics identify the stage and failure code, without document content or exception messages.
+The successful GTD capture completed at `2026-09-28T00:17:15Z` and produced an 887-byte Markdown file. The log confirmed write, flush and successful job completion. A minor OCR spelling error remained in the following paragraph. This is evidence for the table capture, not proof that the full webpage or every print layout is correct.
 
-References: [OpenXPS specification, ECMA-388](https://www.ecma-international.org/wp-content/uploads/ECMA-388_1st_edition_june_2009.pdf), [Microsoft XPS printing example](https://learn.microsoft.com/en-us/windows/win32/printdocs/print-an-xps-om), [FileIO transaction behavior](https://learn.microsoft.com/en-us/windows/apps/develop/files/best-practices-writing-files).
+## Findings and fixes
 
-## Verification
+| Problem | Cause | Change |
+| --- | --- | --- |
+| Initial conversion exception | The task assumed access to the target's parent folder | Write directly to the granted target stream; omit image sidecar files |
+| Valid print packages rejected | OPC parts split into numbered pieces were treated as complete ZIP entries | Resolve logical parts and validate/join pieces in order |
+| Background activation stalled | Asynchronous work returned control before the printer session started | Keep activation synchronous through `session.Start()` |
+| Empty output reported as success | Some jobs contained only images or outlines, and the PDF path was a placeholder | Add PDF text extraction and local OCR fallback; fail if no readable text is recovered |
+| Paragraph tails and wrapped bullets detached | OCR ink height was treated as exact font size; list rendering stopped at one line | Normalize nearby OCR body heights and consume indented list continuations |
+| Empty file appeared complete | Save As closed before background conversion finished | Add stage/page-count notifications and show File ready after the write is flushed and closed |
+| Diagnostic comments overwhelmed the document | Each omitted image fragment emitted a comment | Keep warning codes/counts in diagnostics, outside Markdown |
+| GTD table flattened | Padded rows exceeded spacing limits, narrow gaps lost column geometry, and wrapped cells interrupted detection | Retain smaller OCR gaps; use header column alignment and at least two data rows; join cell continuations before column reading-order analysis |
 
-- Before the parser change, an interleaved-package regression fixture failed with “The OXPS package has no FixedDocumentSequence relationship.”
-- All 13 converter tests passed after the fix. Coverage includes reverse ZIP order, numeric ordering beyond ten pieces, split UTF-8 data, mixed whole/split parts, images, forward-only input, and invalid piece sequences.
-- [Windows build 34666756645](https://github.com/Dan5672/PrintToMD/actions/runs/34666756645) passed for application commit `bd21166dc9f29bf89b3832df22cb0b8e3753df72`.
-- A synthetic GDI print through the old installed printer reproduced `ConversionException` at `2026-09-12T02:09:09Z`.
-- The signed `1.0.1.0` package was installed as an update. The same synthetic print then produced `.tools/printer-after.md`, containing `Print2Md smoke test 12345`, with no new diagnostic failure.
+For the GTD regression, Windows OCR was run on a capture of the original webpage. Actual line coordinates reproduced the failure before the fix and pass afterward. Tests also preserve the following paragraph outside the table and retain native-text column behavior.
 
-The generic old log cannot establish precisely which parser branch rejected the original user's document. The live before/after test verifies the repaired Windows printing path; the original document and other source applications still need user verification.
+## Remaining verification and limitations
 
-## Empty output investigation — 17 September 2026
+- Repeat the full GTD webpage print through 1.0.9.0 and inspect the complete output.
+- Exercise direct PDF input through the installed app; current live verification has mainly used the OXPS path. Direct PDF conversion is covered by core tests.
+- Test live failure/cancellation notifications and concurrent or large jobs.
+- Cross-page paragraph joining, complex/merged/missing table cells and tables spanning pages remain limitations.
+- OCR spelling, decorative text and diagram labels can still be inaccurate.
+- The separate vector-outline smoke test has not been verified end to end.
 
-Version 1.0.5.0 logged successful conversions with no extracted text: one job had seven pages and 41 images; the latest two-page jobs had zero glyphs, zero recognized images and only two output characters. The latter is consistent with outlined/vector content, although the original print package was not captured. The PDF input branch also only wrote a placeholder instead of extracting document text.
+## Reproduce tests
 
-Version 1.0.6.0 adds PDF text extraction using PdfPig and local Windows OCR for OXPS/PDF pages without extractable text. OXPS pages are converted to PDF using the Windows print workflow converter, rendered and recognized locally. Documents that remain unreadable fail explicitly instead of reporting blank Markdown as success. OCR output carries a review notice. Images are still omitted from printer output with a notice. The synchronous background session startup fix is preserved. In-place installation no longer silently falls back to uninstalling the app.
+Use `scripts/Test-Core.ps1` for the converter suite. Use `scripts/Test-Printer.ps1` with `Text`, `Raster`, `Outline` or `Table` mode for live Windows checks. Supply a fresh output path and complete Save As with that exact path; inspect the output as well as the completion log.
 
-### Verification of 1.0.6.0
+Forced GDI `PrintToFile=true` returned Access Denied before app activation on the test machine. The smoke script therefore uses the printer's normal Save As flow.
 
-- All 19 converter tests passed locally and in CI, including real PDF text extraction, mixed text/OCR page order, empty-recognition failure, malformed PDF, cancellation and existing interleaved OXPS regressions.
-- [Windows build 35166464837](https://github.com/Dan5672/PrintToMD/actions/runs/35166464837) passed for application commit `5289e8a`, including UWP .NET Native compilation. PdfPig attribution is bundled in the app.
-- The signed package was verified and installed as an update; Windows reports `Print2Md_1.0.6.0_x64__n696szkjxb9v8`.
-- Live raster print passed at `2026-09-17T05:54:43Z`: zero glyphs, one image, OCR recovered exactly `Print2Md smoke test 12345`; output is `.tools/printer-106-raster.md` (197 characters including notices).
-- A real six-page document completed at `2026-09-17T05:57:21Z`: zero glyphs, nine images, OCR recovered 32/37/37/35/66/29 lines across its pages and generated 15,477 Markdown characters. The log confirms target write, flush and successful job completion. Its saved file has not yet been inspected.
-- Forced GDI `PrintToFile=true` returned Access Denied before app activation. The smoke script now uses the printer's normal Save As flow; this successfully reached the converter.
-- The separate outline smoke test did not produce its requested output before timeout; it remains unverified. A real document was submitted during that check, as recorded above.
-
-Direct PDF input is covered by converter tests; the successful live jobs above exercise the OXPS-to-PDF rendering and Windows OCR path. It has not been confirmed whether the real six-page document is the original failing PDF. OCR spelling and layout fidelity need review in the saved output.
-
-## Paragraph reflow — 1.0.7.0
-
-Review of `.tools/GTD.md` found paragraphs split before short final lines and wrapped bullet text detached from its item. OCR reports ink bounding-box height, which was being treated as exact font size; small height variations exceeded the paragraph continuation tolerance. Nearby OCR heights now use a prose-derived body height while substantially larger headings retain their size. List rendering now consumes indented continuation lines using the existing paragraph spacing and structural checks.
-
-Both new regression fixtures failed before the change and pass afterward; all 21 converter tests pass. Fixtures check that real paragraph gaps and separate list items are preserved. These are synthetic OCR geometry fixtures based on the GTD symptoms; the original print geometry was not retained. Existing Markdown files are unchanged and a repeat print is needed to assess the improvement on GTD. Cross-page paragraph joining and diagram OCR remain limitations.
-
-## Progress and clean output — 1.0.8.0
-
-After the target is selected, a tagged Windows notification shows receiving, extraction, OCR page/total and saving stages. A File ready notification replaces it only after output is written and flushed; failure and cancellation also replace the same notification. Progress updates do not repeatedly open popups. Notifications respect Windows settings and do not block printing if unavailable. The Save As-created target can still be empty during conversion.
-
-Conversion-status comments are removed from Markdown. Warning codes and counts are retained in diagnostics. OCR now preserves widely separated cells on a recognized line, rather than discarding horizontal geometry by creating one text run per line. Short OCR table rows no longer require bold metadata to avoid column-order splitting. A synthetic Action/Context table regression passes, along with all 22 converter tests; actual GTD table reconstruction still needs a repeat print.
-
-Windows build `35207413081` passed for `884cf81`; the signed 1.0.8.0 package was installed in place. The live image-only table smoke test passed: `.tools/printer-108-table.md` contains a proper Action/Context table with both rows intact and no conversion comments. Windows notification history contains File ready for that exact output filename. The intermediate popup visibility still needs user confirmation; notification delivery is enabled on this machine. `scripts/Test-Printer.ps1 -Mode Table` reproduces the end-to-end test and verifies the table cells as well as the smoke text.
-
-## GTD table follow-up — 1.0.9.0
-
-The user's repeat print still flattened the table. Inspection of https://hamberg.no/gtd/ found bordered cells with 8px padding and wrapped content. Windows OCR on a browser capture supplied real geometry: header baseline 221, first row 272, continuation 298, next row around 349. The old 2.2-times-font row limit rejected the padded rows, and requiring a wide gap in every row rejected long cells. Wrapped cells also interrupted table detection.
-
-The revised OCR-only detector uses column starts from the header, requires at least two aligned data rows, tolerates padded row spacing and joins single-column continuation lines into their preceding cells. Runs crossing a column boundary or not aligned with a column stop the table. Table regions are preserved before column reading order is applied. The Windows OCR adapter retains smaller horizontal gaps for subsequent alignment checks. Native-text column behavior is unchanged.
-
-A regression using GTD's captured OCR geometry failed before the fix and passes afterward, including both wrapped cells and the following paragraph staying outside the table. All 23 converter tests pass.
-
-Windows build `35717271455` passed for `a953d41`. Its signed package was verified and installed in place as 1.0.9.0 on 22 September. An actual-source capture print was submitted using `.tools/Print-GtdCapture.ps1`, targeting `.tools/gtd-table-109.md`; live verification is pending the Windows Save As interaction. Do not treat the geometry regression as proof that the user's full browser print is fixed.
+Generated captures, downloaded source pages, temporary OCR scripts, smoke outputs and superseded installer builds are not repository fixtures. They were removed during cleanup. User-created printouts were preserved locally under the ignored `.tools/printouts/` directory; the latest installer and local build/signing tools were retained. Regression fixtures in `tests/` remain part of the repository.
