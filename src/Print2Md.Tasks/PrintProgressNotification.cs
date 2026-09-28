@@ -24,7 +24,7 @@ internal sealed class PrintProgressNotification
             xml.LoadXml("<toast duration='long'><visual><binding template='ToastGeneric'>" +
                 "<text>Creating your Markdown file</text>" +
                 "<text>Please wait for File ready before opening it.</text>" +
-                "<progress title='Print to Markdown' value='indeterminate' valueStringOverride='' status='{status}'/>" +
+                "<progress title='Print2MD' value='indeterminate' valueStringOverride='' status='{status}'/>" +
                 "</binding></visual><audio silent='true'/></toast>");
             var toast = new ToastNotification(xml) { Tag = tag, Group = Group, Data = Data("Receiving document") };
             ToastNotificationManager.CreateToastNotifier().Show(toast);

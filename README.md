@@ -1,16 +1,16 @@
-﻿# Print to Markdown
+# Print2MD
 
 <p align="center">
-  <img src="src/Print2Md.App/Assets/Source/Logo.png" alt="Print to Markdown" width="144">
+  <img src="src/Print2Md.App/Assets/Source/Logo.png" alt="Print2MD" width="144">
 </p>
 
 **A Windows 11 virtual printer that turns printed content into editable Markdown.**
 
-Choose **Print to Markdown** in an application's Print dialog, select a `.md` filename, and wait for **File ready**. Text extraction and OCR run locally on your PC. Documents are not uploaded.
+Choose **Print2MD** in an application's Print dialog, select a `.md` filename, and wait for **File ready**. Text extraction and OCR run locally on your PC. Documents are not uploaded.
 
 [Builds](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml) · [Report an issue](https://github.com/Dan5672/PrintToMD/issues) · [Architecture](docs/ARCHITECTURE.md) · [License](LICENSE)
 
-> **Developer preview — version 1.0.9.0.** The current package targets Windows 11 24H2 or later on x64. Builds are unsigned and must be signed and trusted locally before installation. A publicly trusted installer is not yet available.
+> **Store release candidate — version 1.1.0.0.** The current package targets Windows 11 24H2 or later on x64. Builds are unsigned and must be signed and trusted locally before installation. A publicly trusted installer is not yet available.
 
 ## What it does
 
@@ -45,7 +45,7 @@ Windows 10 and older Windows 11 releases are not supported. Visual Studio is not
 
 ### 1. Get the package and signing script
 
-Open [GitHub Actions](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), select a successful **Build** run for the branch you intend to install, and download its `Print2Md-unsigned-x64` artifact. Extract the artifact and locate the `.msix` file.
+Open [GitHub Actions](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), select a successful **Build** run for the branch you intend to install, and download its `Print2MD-store-x64` artifact. Extract the artifact and locate the `.msix` file.
 
 Artifacts are retained for 14 days. Use a successful `main` build for the current preview. Repository maintainers can start a new build using **Run workflow**; check the run's branch and package version when downloading.
 
@@ -56,13 +56,17 @@ git clone https://github.com/Dan5672/PrintToMD.git
 cd PrintToMD
 ```
 
+The artifact also contains a Store upload file (`.msixupload` or `.appxupload`). Submit that file to Partner Center; use the separate unsigned `.msix` only for local testing.
+
+**Preview migration:** version 1.1.0.0 uses the Store identity `FriskeLabs.Print2MD` and printer name `Print2MD`. It is a different package from the old `Print2Md` preview, not an in-place update. Complete any pending jobs before removing the old preview; check for duplicate queues when testing.
+
 ### 2. Sign and install
 
 Run this from the repository folder, replacing the example package path:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Sign-Package.ps1 `
-  -PackagePath "C:\path\to\Print2Md.App_1.0.9.0_x64.msix" -Install
+  -PackagePath "C:\path\to\FriskeLabs.Print2MD_1.1.0.0_x64.msix" -Install
 ```
 
 The script creates or reuses a local development certificate, obtains `signtool.exe` if needed, signs a copy of the package, verifies its signature, and installs it. Downloading signing tools and timestamping the signature require network access; printing does not.
@@ -79,8 +83,8 @@ For later updates, use the same signing certificate and a newer package version.
 ### 3. Check the installation
 
 ```powershell
-Get-AppxPackage -Name Print2Md | Select-Object Name, Version, Status
-Get-Printer -Name 'Print to Markdown'
+Get-AppxPackage -Name FriskeLabs.Print2MD | Select-Object Name, Version, Status
+Get-Printer -Name 'Print2MD'
 ```
 
 The printer should also appear in application Print dialogs.
@@ -88,7 +92,7 @@ The printer should also appear in application Print dialogs.
 ## Print a document
 
 1. Open the document or webpage and choose **Print** (usually `Ctrl+P`).
-2. Select **Print to Markdown**.
+2. Select **Print2MD**.
 3. Choose the page range, paper size and orientation. Use one source page per printed sheet for the best recognition.
 4. Select **Print**, then choose a `.md` filename in Windows **Save As**.
 5. Wait for **File ready** before opening the result.
@@ -139,7 +143,7 @@ The log is stored at:
 Find the installed path with PowerShell:
 
 ```powershell
-$package = Get-AppxPackage -Name Print2Md
+$package = Get-AppxPackage -Name FriskeLabs.Print2MD
 $log = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalState\print2md.log"
 Get-Content -LiteralPath $log -Tail 40
 ```
@@ -150,7 +154,7 @@ When [reporting a problem](https://github.com/Dan5672/PrintToMD/issues/new), inc
 
 ### Uninstall
 
-Use **Settings > Apps > Installed apps > Print to Markdown > Uninstall**. Removing the package also removes its virtual-printer queue.
+Use **Settings > Apps > Installed apps > Print2MD > Uninstall**. Removing the package also removes its virtual-printer queue.
 
 ## Development and testing
 
@@ -186,4 +190,4 @@ See [Architecture](docs/ARCHITECTURE.md) for conversion rules and [verification 
 
 The app performs conversion locally and declares no network capability. Diagnostic logs exclude document text, document names and selected paths. Completion notifications display the output filename locally. Buffered documents are disposed after conversion; the app does not save diagnostic copies of source documents.
 
-Print to Markdown is [MIT licensed](LICENSE). PDF extraction uses PdfPig; its [third-party license and notices](src/Print2Md.App/ThirdParty/PdfPig-LICENSE.txt) are included in the package.
+Print2MD is [MIT licensed](LICENSE). PDF extraction uses PdfPig; its [third-party license and notices](src/Print2Md.App/ThirdParty/PdfPig-LICENSE.txt) are included in the package.

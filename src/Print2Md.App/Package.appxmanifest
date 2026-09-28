@@ -7,17 +7,17 @@
   xmlns:printsupport2="http://schemas.microsoft.com/appx/manifest/printsupport/windows10/2"
   IgnorableNamespaces="uap uap10 mp printsupport2">
 
-  <Identity Name="Print2Md" Publisher="CN=Print2Md-Development" Version="1.0.9.0" />
+  <Identity Name="FriskeLabs.Print2MD" Publisher="CN=7A2E1264-EDC4-4728-A5BD-D1FAC5534E2B" Version="1.1.0.0" />
   <mp:PhoneIdentity PhoneProductId="f40b9a2e-dd6a-4e74-b44a-ce390ace5088" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
 
   <Properties>
-    <DisplayName>Print to Markdown</DisplayName>
-    <PublisherDisplayName>Print2Md</PublisherDisplayName>
+    <DisplayName>Print2MD</DisplayName>
+    <PublisherDisplayName>FriskeLabs</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.26100.0" MaxVersionTested="10.0.26200.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.26100.0" MaxVersionTested="10.0.26200.0" />
   </Dependencies>
 
   <Resources>
@@ -32,7 +32,7 @@
                  uap10:TrustLevel="appContainer"
                  uap10:SupportsMultipleInstances="true">
       <uap:VisualElements
-        DisplayName="Print to Markdown"
+        DisplayName="Print2MD"
         Description="Convert printed documents to readable Markdown"
         BackgroundColor="#263238"
         Square150x150Logo="Assets\Square150x150Logo.png"

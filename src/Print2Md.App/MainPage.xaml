@@ -5,15 +5,15 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
     <ScrollViewer>
         <StackPanel MaxWidth="680" Padding="40" HorizontalAlignment="Center">
-            <TextBlock Text="Print to Markdown" Style="{ThemeResource TitleTextBlockStyle}" />
+            <TextBlock Text="Print2MD" Style="{ThemeResource TitleTextBlockStyle}" />
             <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" FontSize="18"
-                       Text="The Print to Markdown printer is installed and ready." />
+                       Text="The Print2MD printer is installed and ready." />
             <Border Margin="0,28,0,0" Padding="20" CornerRadius="8"
                     Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
                 <StackPanel>
                     <TextBlock Text="How to use it" FontWeight="SemiBold" FontSize="20" />
                     <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
-                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print to Markdown.&#x0a;3. Choose a .md file in the Windows Save As dialog.&#x0a;4. Wait for the File ready notification before opening it. You can check progress in Windows Notification Center." />
+                               Text="1. Open Print in any Windows application.&#x0a;2. Select Print2MD.&#x0a;3. Choose a .md file in the Windows Save As dialog.&#x0a;4. Wait for the File ready notification before opening it. You can check progress in Windows Notification Center." />
                 </StackPanel>
             </Border>
             <TextBlock Margin="0,24,0,0" TextWrapping="Wrap"

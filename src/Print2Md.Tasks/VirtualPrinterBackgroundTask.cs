@@ -1,4 +1,4 @@
-﻿using Print2Md.Core;
+using Print2Md.Core;
 using System;
 using System.IO;
 using System.Linq;
@@ -183,7 +183,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         {
             status = PrintWorkflowSubmittedStatus.Canceled;
             await WriteProgressAsync("operation-canceled");
-            progressNotification.Finish("Print to Markdown canceled", "The Markdown file was not completed.");
+            progressNotification.Finish("Print2MD canceled", "The Markdown file was not completed.");
         }
         catch (Exception exception)
         {
@@ -192,7 +192,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             var detail = failure == "NoExtractableText" ? "No readable text found, even after OCR"
                 : failure == "OcrUnavailable" ? "A Windows OCR language must be installed"
                 : stage + ": " + failure;
-            progressNotification.Finish("Print to Markdown failed", "The file is not ready. " + detail);
+            progressNotification.Finish("Print2MD failed", "The file is not ready. " + detail);
         }
         finally
         {
@@ -212,7 +212,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
     private async void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
     {
         cancellation?.Cancel();
-        progressNotification?.Finish("Print to Markdown stopped", "The Markdown file was not completed. Please print again.");
+        progressNotification?.Finish("Print2MD stopped", "The Markdown file was not completed. Please print again.");
         await WriteProgressAsync("background-canceled-" + reason);
     }
 

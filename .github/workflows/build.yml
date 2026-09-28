@@ -39,7 +39,7 @@ jobs:
         run: dotnet run --project tests/Print2Md.Core.Tests/Print2Md.Core.Tests.csproj --configuration Release --no-build
 
   build-package:
-    name: Build unsigned MSIX
+    name: Build Store upload and test package
     needs: test-core
     runs-on: windows-2025
     steps:
@@ -74,18 +74,19 @@ jobs:
             /p:Platform=x64 `
             /p:RestoreConfigFile="$env:GITHUB_WORKSPACE\NuGet.Config" `
             /p:GenerateAppxPackageOnBuild=true `
-            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:UapAppxPackageBuildMode=StoreUpload `
             /p:AppxBundle=Never `
+            /p:AppxSymbolPackageEnabled=true `
             /p:AppxPackageSigningEnabled=false `
             /p:AppxPackageDir="$packageDirectory\"
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
           }
 
-      - name: Upload unsigned package
+      - name: Upload Store and test packages
         uses: actions/upload-artifact@v7
         with:
-          name: Print2Md-unsigned-x64
+          name: Print2MD-store-x64
           path: artifacts/AppPackages/**
           if-no-files-found: error
           retention-days: 14

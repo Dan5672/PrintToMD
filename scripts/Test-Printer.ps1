@@ -43,8 +43,8 @@ try {
         $outline.AddString('Print2Md smoke test 12345', $font.FontFamily, 0, 24,
             [System.Drawing.PointF]::new(80, 80), [System.Drawing.StringFormat]::GenericDefault)
     }
-    $document.PrinterSettings.PrinterName = 'Print to Markdown'
-    if (-not $document.PrinterSettings.IsValid) { throw 'Print to Markdown is not installed.' }
+    $document.PrinterSettings.PrinterName = 'Print2MD'
+    if (-not $document.PrinterSettings.IsValid) { throw 'Print2MD is not installed.' }
     $document.DocumentName = 'Print2Md ' + $Mode + ' smoke test'
     # Let the virtual printer request its output through the normal Save As flow.
     # Forced GDI print-to-file can fail with Access Denied before app activation.
