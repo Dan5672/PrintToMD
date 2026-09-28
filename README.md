@@ -47,14 +47,13 @@ Windows 10 and older Windows 11 releases are not supported. Visual Studio is not
 
 Open [GitHub Actions](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), select a successful **Build** run for the branch you intend to install, and download its `Print2Md-unsigned-x64` artifact. Extract the artifact and locate the `.msix` file.
 
-Artifacts are retained for 14 days. Repository maintainers can start a new build using **Run workflow** and select the desired branch. The 1.0.9 fixes were developed on `fix/interleaved-print-packages`; check the run's branch and package version when downloading.
+Artifacts are retained for 14 days. Use a successful `main` build for the current preview. Repository maintainers can start a new build using **Run workflow**; check the run's branch and package version when downloading.
 
 Clone the repository to obtain the signing script:
 
 ```powershell
 git clone https://github.com/Dan5672/PrintToMD.git
 cd PrintToMD
-git switch fix/interleaved-print-packages
 ```
 
 ### 2. Sign and install
