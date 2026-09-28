@@ -47,12 +47,12 @@ Windows 10 and older Windows 11 releases are not supported. Visual Studio is not
 
 Open [GitHub Actions](https://github.com/Dan5672/PrintToMD/actions/workflows/build.yml), select a successful **Build** run for the branch you intend to install, and download its `Print2MD-store-x64` artifact. Extract the artifact and locate the `.msix` file.
 
-Artifacts are retained for 14 days. Use a successful `main` build for the current preview. Repository maintainers can start a new build using **Run workflow**; check the run's branch and package version when downloading.
+Artifacts are retained for 14 days. Use a successful `release/store-1.1.0` build for this Store candidate until it is merged into `main`. Repository maintainers can start a new build using **Run workflow**; check the run's branch and package version when downloading.
 
 Clone the repository to obtain the signing script:
 
 ```powershell
-git clone https://github.com/Dan5672/PrintToMD.git
+git clone --branch release/store-1.1.0 https://github.com/Dan5672/PrintToMD.git
 cd PrintToMD
 ```
 
@@ -180,7 +180,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Printer.ps1 `
 
 Available modes are `Text`, `Raster`, `Outline` and `Table`. Choose a fresh output filename and complete Windows Save As using that exact path. The script refuses to overwrite existing output and checks the resulting text; Table mode also checks the table cells.
 
-To build locally, open `PRINT2MD.sln` in Visual Studio, select x64, restore dependencies, and build the app. GitHub Actions runs converter tests and produces an unsigned Release x64 MSIX on pushes/PRs to `main` and manual workflow dispatches.
+To build locally, open `PRINT2MD.sln` in Visual Studio, select x64, restore dependencies, and build the app. GitHub Actions runs converter tests and produces a Store upload file with symbols and an unsigned Release x64 test package on pushes/PRs to `main` and manual workflow dispatches.
 
 `.tools/`, build output, installer packages and certificates are ignored by Git. Keep generated printouts and local signing material out of commits. Retain the source regression tests and repeatable test scripts.
 
